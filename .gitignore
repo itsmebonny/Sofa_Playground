@@ -1,0 +1,7 @@
+npy/
+npy_gmsh/
+npy_GNN/
+models/
+.vscode/
+lastUsedGUI.ini
+.runSofa.ini
