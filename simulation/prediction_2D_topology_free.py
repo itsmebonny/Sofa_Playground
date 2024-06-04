@@ -15,7 +15,7 @@ from network.fully_connected_2D import Trainer as Trainer2D
 from network.FC_Error_estimation import Trainer as Trainer
 from parameters_2D import p_grid, p_grid_LR, p_grid_test
 
-from scipy.interpolate import RBFInterpolator
+from scipy.interpolate import RBFInterpolator, griddata
 
 import SofaCaribou
 SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
@@ -187,7 +187,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
 
     def onAnimateEndEvent(self, event):
-        self.end_time = process_time()
+        
 
         coarse_pos = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
         
@@ -237,21 +237,23 @@ class AnimationStepController(Sofa.Core.Controller):
             # print(f"Prediction error: {err}")
             # self.errs.append(err)
                 
-        positions = self.MO_training.position.value.copy()
-        print("Positions: ", positions.shape)
+        positions = self.MO_training.rest_position.value.copy()
+        print("Positions: ", positions)
+        
         displacement = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
-        interpolator = RBFInterpolator(positions, displacement, neighbors=5)
-        interpolate_positions = self.MO2.position.value.copy()
+        print("Displacement: ", displacement)
+        interpolator = RBFInterpolator(positions, displacement, neighbors=20, kernel="thin_plate_spline")
+        interpolate_positions = self.MO2.rest_position.value.copy()
         corrected_displacement = interpolator(interpolate_positions)
         print("Corrected displacement: ", corrected_displacement)
-
-        self.MO2.position.value = self.MO2.rest_position.value + corrected_displacement
-
+        print("Before correction: ", self.MO2.position.value)
+        self.MO2.position.value = interpolate_positions + corrected_displacement
+        print("After correction: ", self.MO2.position.value)
 
         # ============== UPDATE THE NN MODEL ==============
         # self.MO_NN.position.value = self.MO2.position.value + U
 
-
+        self.end_time = process_time()
         # error = np.linalg.norm(self.MO_NN.position.value - self.MO1.position.value)
         # print(f"Prediction error: {error}")
         self.compute_metrics()
