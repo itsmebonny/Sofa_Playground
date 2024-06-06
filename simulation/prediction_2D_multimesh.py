@@ -216,9 +216,9 @@ class AnimationStepController(Sofa.Core.Controller):
             
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
         
-        self.vector = np.random.uniform(-1, 1, 2)
-        self.versor = self.vector / np.linalg.norm(self.vector)
-        self.magnitude = np.random.uniform(10, 80)
+        self.theta = np.random.uniform(0, 2*np.pi)
+        self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
+        self.magnitude = np.random.uniform(10, 50)
         self.externalForce = np.append(self.magnitude * self.versor, 0)
 
         # self.externalForce = [0, -40, 0]

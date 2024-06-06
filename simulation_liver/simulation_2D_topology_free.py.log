@@ -1,3 +1,11 @@
 
 --- NEW SESSION: 04/06/2024 15:57:09 ---
 /LowResSolution2D/ROI2.drawBoxes = 1
+
+--- NEW SESSION: 06/06/2024 13:57:53 ---
+/LowResSolution2D/SparseCoarseMesh/coarseDOFs.showColor = 1 1 1 1
+/HighResSolution2D/CoarseMesh/coarseDOFs.showColor = 1 1 1 1
+
+--- NEW SESSION: 06/06/2024 14:19:20 ---
+/LowResSolution2D/SparseCoarseMesh/coarseDOFs.showColor = 1 1 1 1
+/HighResSolution2D/CoarseMesh/coarseDOFs.showColor = 1 1 1 1

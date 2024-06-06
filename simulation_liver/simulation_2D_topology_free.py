@@ -1,3 +1,4 @@
+from turtle import position
 import Sofa
 import SofaRuntime
 import numpy as np 
@@ -47,25 +48,28 @@ class AnimationStepController(Sofa.Core.Controller):
         
         sphereRadius=0.025
 
+        filename_high = 'mesh/liver_2334_3D.msh'
+        filename_low = 'mesh/liver_762_3D.msh'
+
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
-        self.exactSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/liver_3718.msh')
+        self.exactSolution.addObject('MeshGmshLoader', name='grid', filename=filename_high)
         self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
         self.exactSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
-        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.1")
+        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.exactSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.1")
+        self.exactSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-        # self.coarse = self.exactSolution.addChild('CoarseMesh')
-        # self.coarse.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
-        # self.coarse.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
-        # self.MO1_LR = self.coarse.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
-        # self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
-        # self.coarse.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
+        self.coarse = self.exactSolution.addChild('CoarseMesh')
+        self.coarse.addObject('SparseGridTopology', n="10 10 1", position='@grid.position', name='coarseGridHigh')
+        self.coarse.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGridHigh')
+        self.MO1_LR = self.coarse.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGridHigh')
+        self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
+        self.coarse.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
 
 
         self.exactSolution.addChild("visual")
@@ -75,23 +79,23 @@ class AnimationStepController(Sofa.Core.Controller):
         # same object with different resolution
 
         self.LowResSolution = rootNode.addChild('LowResSolution2D', activated=True)
-        self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/liver_389.msh')
+        self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename=filename_low)
         self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
         self.LowResSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
-        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.1")
+        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.1")
+        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
-        self.trained_nodes = self.LowResSolution.addChild('CoarseMesh')
-        self.trained_nodes.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
-        self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
-        self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
-        self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
+        self.trained_nodes = self.LowResSolution.addChild('SparseCoarseMesh')
+        self.trained_nodes.addObject('SparseGridTopology', n="10 10 1", position='@grid.position', name='coarseGridLow')
+        self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGridLow')
+        self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGridLow')
+        self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 1 0')
         self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
 
         self.LowResSolution.addChild("visual")
