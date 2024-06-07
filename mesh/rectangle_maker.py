@@ -198,10 +198,6 @@ def create_liver_like_mesh_3D(lc, depth=0.1):
     gmsh.fltk.run()
 
     
-
-
-    
-    
     
 
 if __name__ == '__main__':
