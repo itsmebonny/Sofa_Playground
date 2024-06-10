@@ -54,7 +54,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.coarse = rootNode.addChild('SamplingNodes')
         self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high)
         self.coarse.addObject('SparseGridTopology', n="50 50 1", position='@grid.position', name='coarseGridHigh') #, scale3d=0.9)
-        self.coarse.addObject('TriangleSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
+        self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
         #self.coarse.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsHigh', output_topology='@triangleTopoHigh')
@@ -62,7 +62,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
         self.exactSolution.addObject('MeshGmshLoader', name='grid', filename=filename_high)
-        self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
+        self.exactSolution.addObject('TetrahedronSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
@@ -87,7 +87,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.LowResSolution = rootNode.addChild('LowResSolution2D', activated=True)
         self.LowResSolution.addObject('MeshGmshLoader', name='gridLow', filename=filename_low)
-        self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@gridLow')
+        self.LowResSolution.addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@gridLow')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
@@ -98,11 +98,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
-        # self.mapping = self.LowResSolution.addChild("SamplingMapping")
-        # #self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
-        # self.MO1_LR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
-        # self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
-        # self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
+        self.mapping = self.LowResSolution.addChild("SamplingMapping")
+        self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
+        #self.MO1_LR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
+        self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
+        self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
 
 
         # self.trained_nodes = rootNode.addChild('SparseCoarseMesh')
@@ -133,17 +133,21 @@ class AnimationStepController(Sofa.Core.Controller):
             self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
             self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
         if self.save:
-            if not os.path.exists('npy_gmsh'):
-                os.mkdir('npy_gmsh')
+            if not os.path.exists('npy_liver'):
+                os.mkdir('npy_liver')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
             self.directory = self.directory + "_estimation"
             if self.efficient_sampling:
                 self.directory = self.directory + "_efficient"
-            os.makedirs(f'npy_gmsh/{self.directory}')
-            print(f"Saving data to npy_gmsh/{self.directory}")
+            os.makedirs(f'npy_liver/{self.directory}')
+            print(f"Saving data to npy_liver/{self.directory}")
         self.sampled = False
 
+        print("High resolution position: ", self.MO_MapHR.position.value)
+        print("Low resolution position: ", self.MO_MapLR.position.value)
+
+        print("Number of points with L2 norm < 0.0001: ", np.sum(np.linalg.norm(self.MO_MapHR.rest_position.value - self.MO_MapLR.rest_position.value, axis=1) < 0.0001))
 
 
     def onAnimateBeginEvent(self, event):
@@ -188,23 +192,25 @@ class AnimationStepController(Sofa.Core.Controller):
 
 
     def onAnimateEndEvent(self, event):
+        print("Number of points with L2 norm < 0.0001: ", np.sum(np.linalg.norm(self.MO_MapHR.rest_position.value - self.MO_MapLR.rest_position.value, axis=1) < 0.0001))
         self.end_time = process_time()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
-        U_high = self.compute_displacement(self.MO1_LR)
-        U_low = self.compute_displacement(self.MO_training)
+        U_high = self.compute_displacement(self.MO_MapHR)
+        U_low = self.compute_displacement(self.MO_MapLR)
         # cut the z component
         # U_high = U_high[:, :2]
         # U_low = U_low[:, :2]
+       
         print ("Displacement: ", np.linalg.norm(U_high - U_low))
         output = np.linalg.norm(U_high - U_low)
         self.outputs.append(output)
         if self.save and not self.efficient_sampling:    
-            np.save(f'npy_gmsh/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_gmsh/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
+            np.save(f'npy_liver/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
+            np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
         elif self.save and self.efficient_sampling:
-            np.save(f'npy_gmsh/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_gmsh/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low)) 
+            np.save(f'npy_liver/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
+            np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low)) 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
         U = mechanical_object.position.value.copy() - mechanical_object.rest_position.value.copy()
