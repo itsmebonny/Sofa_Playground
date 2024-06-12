@@ -52,8 +52,8 @@ class AnimationStepController(Sofa.Core.Controller):
         filename_low = 'mesh/liver_762_3D.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high)
-        self.coarse.addObject('SparseGridTopology', n="50 50 1", position='@grid.position', name='coarseGridHigh') #, scale3d=0.9)
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.9 0.9 0.9", translation="0 0.5 0")
+        self.coarse.addObject('SparseGridTopology', n="50 50 1", position='@grid.position', name='coarseGridHigh') 
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
@@ -122,7 +122,7 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -144,11 +144,7 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"Saving data to npy_liver/{self.directory}")
         self.sampled = False
 
-        print("High resolution position: ", self.MO_MapHR.position.value)
-        print("Low resolution position: ", self.MO_MapLR.position.value)
-
-        print("Number of points with L2 norm < 0.0001: ", np.sum(np.linalg.norm(self.MO_MapHR.rest_position.value - self.MO_MapLR.rest_position.value, axis=1) < 0.0001))
-
+    
 
     def onAnimateBeginEvent(self, event):
 

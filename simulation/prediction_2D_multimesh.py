@@ -240,13 +240,13 @@ class AnimationStepController(Sofa.Core.Controller):
         self.cffLR.init()
 
 
-        self.start_time = process_time()
+        
 
 
 
     def onAnimateEndEvent(self, event):
-        self.end_time = process_time()
-
+        
+        self.start_time = process_time()
         coarse_pos = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
 
         inputs = np.reshape(coarse_pos, -1)
@@ -293,6 +293,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # error = np.linalg.norm(self.MO_NN.position.value - self.MO1.position.value)
         # print(f"Prediction error: {error}")
         self.compute_metrics()
+        self.end_time = process_time()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
 

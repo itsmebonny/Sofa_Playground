@@ -21,8 +21,8 @@ SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
-        self.externalForce = [0, 0, 0]
-        self.object_mass = 2.5
+        self.externalForce = [0, -20, 0]
+        self.object_mass = 0.001
         self.createGraph(node)
         self.root = node
         self.save = False
@@ -60,7 +60,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         self.exactSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
         self.exactSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
-        self.exactSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
+        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -79,7 +79,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         self.LowResSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
-        self.LowResSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
+        self.LowResSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -130,7 +130,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.magnitude = np.random.uniform(10, 40)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
         self.count += 1
-        self.externalForce = [0, 0, 0]
+        self.externalForce = [0, -20, 0]
 
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
@@ -190,14 +190,10 @@ class AnimationStepController(Sofa.Core.Controller):
         else:
             print("No data to compute metrics.")
 
-    
-        
-
-        
 
 def createScene(rootNode, *args, **kwargs):
     rootNode.dt = 0.005
-    rootNode.gravity = [0, -9.81, 0]
+    rootNode.gravity = [0, 0, 0]
     rootNode.name = 'root'
     asc = AnimationStepController(rootNode, *args, **kwargs)
     rootNode.addObject(asc)

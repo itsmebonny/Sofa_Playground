@@ -103,7 +103,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.trained_nodes.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
         self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
         self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
-        self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
+        self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 1 0')
         self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
 
         self.LowResSolution.addChild("visual")
@@ -237,18 +237,23 @@ class AnimationStepController(Sofa.Core.Controller):
             # print(f"Prediction error: {err}")
             # self.errs.append(err)
                 
-        positions = self.MO_training.rest_position.value.copy()
-        print("Positions: ", positions)
-        
+        positions = self.MO_training.rest_position.value.copy()[:, :2]
+        #print("Positions: ", positions)
+        #print("Rest position shape: ", self.MO_training.position.value)
         displacement = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
+        displacement = displacement[:, :2]
         print("Displacement: ", displacement)
-        interpolator = RBFInterpolator(positions, displacement, neighbors=20, kernel="thin_plate_spline")
+
+        interpolator = RBFInterpolator(positions, displacement, neighbors=5, kernel="thin_plate_spline")
         interpolate_positions = self.MO2.rest_position.value.copy()
-        corrected_displacement = interpolator(interpolate_positions)
+        interpolate_positions_2D = self.MO2.rest_position.value.copy()[:, :2]
+        corrected_displacement = interpolator(interpolate_positions_2D)
+
         print("Corrected displacement: ", corrected_displacement)
-        print("Before correction: ", self.MO2.position.value)
+        #print("Before correction: ", self.MO2.position.value)
+        corrected_displacement = np.append(corrected_displacement, np.zeros((interpolate_positions.shape[0], 1)), axis=1)
         self.MO2.position.value = interpolate_positions + corrected_displacement
-        print("After correction: ", self.MO2.position.value)
+        #print("After correction: ", self.MO2.position.value)
 
         # ============== UPDATE THE NN MODEL ==============
         # self.MO_NN.position.value = self.MO2.position.value + U
