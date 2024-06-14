@@ -191,7 +191,7 @@ def create_liver_like_mesh_3D(lc, depth=0.1):
     nb_nodes = len(nodes[0])
 
     # Save the mesh
-    gmsh.write(f"mesh/liver_{nb_nodes}_3D.msh")
+    gmsh.write(f"mesh/liver_{nb_nodes}.msh")
 
 
     # Launch the GUI to see the results
@@ -214,7 +214,7 @@ if __name__ == '__main__':
     elif mesh_type == "liver":
         gmsh.initialize(sys.argv)
         gmsh.model.add("liver")
-        create_liver_like_mesh_3D(0.6, 0.5)
+        create_liver_like_mesh_3D(1.3, 0.5)
         gmsh.finalize()
     else:
         print("Invalid mesh type")

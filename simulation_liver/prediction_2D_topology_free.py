@@ -1,4 +1,4 @@
-from turtle import position
+from httplib2 import ProxiesUnavailableError
 import Sofa
 import SofaRuntime
 import numpy as np 
@@ -6,12 +6,17 @@ import os
 from Sofa import SofaDeformable
 from time import process_time, time
 import datetime
+from sklearn.preprocessing import MinMaxScaler
 from parameters_2D import p_grid, p_grid_LR
 # add network path to the python path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
-from network.fully_connected import Trainer
+from network.fully_connected_2D import Trainer as Trainer2D
+from network.FC_Error_estimation import Trainer as Trainer
+from parameters_2D import p_grid, p_grid_LR, p_grid_test
+
+from scipy.interpolate import RBFInterpolator, griddata
 
 import SofaCaribou
 SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
@@ -23,6 +28,12 @@ class AnimationStepController(Sofa.Core.Controller):
         self.createGraph(node)
         self.root = node
         self.save = False
+        self.l2_error, self.MSE_error = [], []
+        self.l2_deformation, self.MSE_deformation = [], []
+        self.network = Trainer('npy_liver/2024-06-12_14:59:09_estimation/train', 32, 0.001, 1000)
+        # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
+        # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
+        self.network.load_model('models/model_2024-06-12_17:00:30_high_res.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -49,11 +60,11 @@ class AnimationStepController(Sofa.Core.Controller):
         sphereRadius=0.025
 
         filename_high = 'mesh/liver_2334.msh'
-        filename_low = 'mesh/liver_261.msh'
+        filename_low = 'mesh/liver_762.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 0.8", translation="0 1 0")
-        self.coarse.addObject('SparseGridTopology', n="20 20 1", position='@grid.position', name='coarseGridHigh')  # ================================================================================================================================================================================================================================================================================================================================================================================================================MODIFICARE QUESTO ================================================================================================================================================================================================================================================================================================================================================================================================================
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.9 0.9 0.9", translation="0 0.5 0")
+        self.coarse.addObject('SparseGridTopology', n="50 50 1", position='@grid.position', name='coarseGridHigh') 
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
@@ -115,72 +126,57 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addChild("visual")
         self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0 0.2')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
+        print("High resolution shape: ", self.MO_sampling.position.value.shape)
+        print("Low resolution shape: ", self.MO2.position.value.shape)
+        self.high_res_shape = self.MO_MapHR.position.value.shape
+        self.low_res_shape = self.MO_MapLR.position.value.shape
+
 
     def onSimulationInitDoneEvent(self, event):
         """
         Called within the Sofa pipeline at the end of the scene graph initialisation.
         """
+
+        print("Simulation initialized.")
+        print("High resolution shape: ", self.high_res_shape)
+        print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
         self.save = False
-        self.efficient_sampling = False
-        if self.efficient_sampling:
-            self.count_v = 0
-            self.num_versors = 5
-            self.versors = self.generate_versors(self.num_versors)
-            self.magnitudes = np.linspace(10, 50, 30)
-            self.count_m = 0
-            self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
-            self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
+        self.start_time = 0
         if self.save:
-            if not os.path.exists('npy_liver'):
-                os.mkdir('npy_liver')
+            if not os.path.exists('npy'):
+                os.mkdir('npy')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-            self.directory = self.directory + "_estimation"
-            if self.efficient_sampling:
-                self.directory = self.directory + "_efficient"
-            os.makedirs(f'npy_liver/{self.directory}')
-            print(f"Saving data to npy_liver/{self.directory}")
-        self.sampled = False
+            os.makedirs(f'npy/{self.directory}')
+            print(f"Saving data to npy/{self.directory}")
 
-    
+        print("High resolution shape: ", self.MO_sampling.position.value.shape)
+        print("Low resolution shape: ", self.MO_MapLR.position.value.shape)
+        self.high_res_shape = self.MO_MapHR.position.value.shape
+        self.low_res_shape = self.MO_MapLR.position.value.shape
 
     def onAnimateBeginEvent(self, event):
 
         # reset positions
         self.MO1.position.value = self.MO1.rest_position.value
         self.MO2.position.value = self.MO2.rest_position.value
-        if self.sampled:
-            print("================== Sampled all magnitudes and versors ==================\n")
-            print ("================== The simulation is over ==================\n")
+        # self.MO_NN.position.value = self.MO_NN.rest_position.value
         
-        if not self.efficient_sampling:
-            self.vector = np.random.uniform(-1, 1, 2)
-            self.versor = self.vector / np.linalg.norm(self.vector)
-            self.magnitude = np.random.uniform(100, 400)
-            self.externalForce = np.append(self.magnitude * self.versor, 0)
-        else:
-            self.sample = self.count_m *self.num_versors + self.count_v
-            self.externalForce = np.append(self.magnitudes[self.count_m] * self.versors[self.count_v], 0)
-            
-            self.count_v += 1
-            if self.count_v == len(self.versors):
-                self.count_v = 0
-                self.count_m += 1
-                self.versors = self.generate_versors(self.num_versors, starting_point=self.starting_points[self.count_m])
-            if self.count_m == len(self.magnitudes):
-                self.count_m = 0
-                self.count_v = 0
-                self.sampled = True
-        self.externalForce = np.array([-10, -10, 0])
+        self.vector = np.random.uniform(-1, 1, 2)
+        self.versor = self.vector / np.linalg.norm(self.vector)
+        self.magnitude = np.random.uniform(100, 300)
+        self.externalForce = np.append(self.magnitude * self.versor, 0)
+
+        #self.externalForce = [0, -60, 0]
+        # self.externalForce_LR = [0, -60, 0]
+
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-        self.cff.init()
-
-
         self.LowResSolution.removeObject(self.cffLR)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+        self.cff.init()
         self.cffLR.init()
 
 
@@ -189,49 +185,132 @@ class AnimationStepController(Sofa.Core.Controller):
 
 
     def onAnimateEndEvent(self, event):
-        print("Number of points with L2 norm < 0.0001: ", np.sum(np.linalg.norm(self.MO_MapHR.rest_position.value - self.MO_MapLR.rest_position.value, axis=1) < 0.0001))
+        
+
+        coarse_pos = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
+        
+        print("Coarse position: ", coarse_pos.shape)
+        # cut the z component
+        # coarse_pos = coarse_pos[:, :2]
+        # print("Coarse position shape: ", coarse_pos.shape)
+        inputs = np.reshape(coarse_pos, -1)
+        if self.network.normalized:
+            scaler = MinMaxScaler()
+            inputs = scaler.fit_transform(inputs)
+
+        # self.noises = [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05]
+        # self.errs = []
+        # for i in self.noises:
+        #     print(f"Adding noise: {i}")
+        #     self.MO_training.position.value = coarse_pos + self.MO_training.rest_position.value
+        #     # add noise to the input
+        #     noise = np.random.normal(0, i, inputs.shape)
+        #     noisy_inputs = inputs + noise
+
+
+        U = self.network.predict(inputs).cpu().numpy()
+        if self.network.normalized:
+            U = scaler.inverse_transform(U)
+        # print("Predicted displacement: ", U.shape)
+        # print("Low res shape: ", self.low_res_shape)
+        # reshape U to have the same shape as the position
+        # add the z component
+
+        
+
+        U = np.reshape(U, (self.low_res_shape[0], self.low_res_shape[1]))
+        # U = np.append(U, np.zeros((self.high_res_shape[0], 1)), axis=1)
+        # print("U shape after reshape: ", U)
+        # compute L2 norm of the prediction error
+
+        # print("Predicted displacement first 5 nodes: ", U[:5])
+        # print("Exact displacement first 5 nodes: ", self.MO1.position.value[:5] - self.MO1.rest_position.value[:5])
+
+
+        self.MO_MapLR.position.value = self.MO_MapLR.position.value + U
+
+
+
+            # err = np.linalg.norm(self.MO1_LR.position.value - self.MO_training.position.value)
+            # print(f"Prediction error: {err}")
+            # self.errs.append(err)
+                
+        # positions = self.MO_MapLR.rest_position.value.copy()[:, :2]
+        # #print("Positions: ", positions)
+        # #print("Rest position shape: ", self.MO_training.position.value)
+        # displacement = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
+        # displacement = displacement[:, :2]
+        # print("Displacement: ", displacement)
+
+        # interpolator = RBFInterpolator(positions, displacement, neighbors=5, kernel="thin_plate_spline")
+        # interpolate_positions = self.MO2.rest_position.value.copy()
+        # interpolate_positions_2D = self.MO2.rest_position.value.copy()[:, :2]
+        # corrected_displacement = interpolator(interpolate_positions_2D)
+
+        # print("Corrected displacement: ", corrected_displacement)
+        # #print("Before correction: ", self.MO2.position.value)
+        # corrected_displacement = np.append(corrected_displacement, np.zeros((interpolate_positions.shape[0], 1)), axis=1)
+        # self.MO2.position.value = interpolate_positions + corrected_displacement
+        # #print("After correction: ", self.MO2.position.value)
+
+        # ============== UPDATE THE NN MODEL ==============
+        # self.MO_NN.position.value = self.MO2.position.value + U
+
         self.end_time = process_time()
+        # error = np.linalg.norm(self.MO_NN.position.value - self.MO1.position.value)
+        # print(f"Prediction error: {error}")
+        self.compute_metrics()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
-        U_high = self.compute_displacement(self.MO_MapHR)
-        U_low = self.compute_displacement(self.MO_MapLR)
-        # cut the z component
-        # U_high = U_high[:, :2]
-        # U_low = U_low[:, :2]
-       
-        print ("Displacement: ", np.linalg.norm(U_high - U_low))
-        output = np.linalg.norm(U_high - U_low)
-        self.outputs.append(output)
-        if self.save and not self.efficient_sampling:    
-            np.save(f'npy_liver/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
-        elif self.save and self.efficient_sampling:
-            np.save(f'npy_liver/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low)) 
-    def compute_displacement(self, mechanical_object):
-        # Compute the displacement between the high and low resolution solutions
-        U = mechanical_object.position.value.copy() - mechanical_object.rest_position.value.copy()
-        return U
-    
-    def compute_rest_position(self, mechanical_object):
-        # Compute the position of the high resolution solution
-        return mechanical_object.rest_position.value.copy()
-    
-    def generate_versors(self, n=30, starting_point=0):
-        """
-        Generate evenly distributed versor on the unit circle.
-        Change the starting point at every new magnitude
-        """
-        angles = np.linspace(0, 2*np.pi, n, endpoint=False) + starting_point
-        versors = np.array([np.cos(angles), np.sin(angles)]).T
-        return versors
-    def close(self):
-        if len(self.outputs) > 0:
-            print("Mean error: ", np.mean(self.outputs))
-            print("Max error: ", np.max(self.outputs))
-            print("Min error: ", np.min(self.outputs))
-            print("Standard deviation: ", np.std(self.outputs))
 
+    def compute_metrics(self):
+        """
+        Compute L2 error and MSE for each sample.
+        """
+
+        pred = self.MO_MapLR.position.value - self.MO_MapLR.rest_position.value
+        gt = self.MO_MapHR.position.value - self.MO_MapHR.rest_position.value
+
+        # Compute metrics only for non-zero displacements
+        if np.linalg.norm(gt) > 1e-6:
+            error = (gt - pred).reshape(-1)
+            self.l2_error.append(np.linalg.norm(error))
+            self.MSE_error.append((error.T @ error) / error.shape[0])
+            self.l2_deformation.append(np.linalg.norm(gt))
+            self.MSE_deformation.append((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0])
+
+    def close(self):
+
+        if len(self.l2_error) > 0:
+            print("\nL2 ERROR Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.l2_error), 6)} ± {np.round(np.std(self.l2_error), 6)} mm")
+            print(f"\t- Extrema : {np.round(np.min(self.l2_error), 6)} -> {np.round(np.max(self.l2_error), 6)} mm")
+            relative_error = np.array(self.l2_error) / np.array(self.l2_deformation)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
+
+            print("\nMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} mm²")
+            print(f"\t- Extrema : {np.round(np.min(self.MSE_error), 6)} -> {np.round(np.max(self.MSE_error), 6)} mm²")
+            relative_error = np.array(self.MSE_error) / np.array(self.MSE_deformation)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
+
+        elif len(self.errs) > 0:
+            # plot the error as a function of the noise
+            import matplotlib.pyplot as plt
+            plt.semilogx(self.noises, self.errs)
+            plt.xlabel('Noise')
+            plt.ylabel('Error')
+            plt.title('Error as a function of the noise')
+            plt.show()
+        else:
+            print("No data to compute metrics.")
+
+    
+        
+
+        
 
 def createScene(rootNode, *args, **kwargs):
     rootNode.dt = 0.01
@@ -255,7 +334,7 @@ def main():
     SofaRuntime.importPlugin("Sofa.Component.SolidMechanics.FEM.Elastic")
 
     root=Sofa.Core.Node("root")
-    asc = createScene(root)[1]
+    rootNode, asc = createScene(root)
     Sofa.Simulation.init(root)
 
     Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
@@ -264,7 +343,6 @@ def main():
     Sofa.Gui.GUIManager.MainLoop(root)
     Sofa.Gui.GUIManager.closeGUI()
     asc.close()
-
 
 if __name__ == '__main__':
     main()
