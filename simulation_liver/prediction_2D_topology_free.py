@@ -30,10 +30,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_liver/2024-06-12_14:59:09_estimation/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_liver/2024-06-17_11:18:07_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-06-12_17:00:30_high_res.pth') # efficient noisy
+        self.network.load_model('models/model_2024-06-17_13:50:10_high_res.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -60,11 +60,11 @@ class AnimationStepController(Sofa.Core.Controller):
         sphereRadius=0.025
 
         filename_high = 'mesh/liver_2334.msh'
-        filename_low = 'mesh/liver_762.msh'
+        filename_low = 'mesh/liver_261.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.9 0.9 0.9", translation="0 0.5 0")
-        self.coarse.addObject('SparseGridTopology', n="50 50 1", position='@grid.position', name='coarseGridHigh') 
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 0.8", translation="0 1 0")
+        self.coarse.addObject('SparseGridTopology', n="20 20 1", position='@grid.position', name='coarseGridHigh')  # ================================================================================================================================================================================================================================================================================================================================================================================================================MODIFICARE QUESTO ================================================================================================================================================================================================================================================================================================================================================================================================================
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
@@ -76,8 +76,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('TetrahedronSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=500, tolerance=1e-08, threshold=1e-08, warmStart=True)
+        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=100, tolerance=1e-08, threshold=1e-08, warmStart=True)
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -126,6 +126,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addChild("visual")
         self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0 0.2')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
+
+
         print("High resolution shape: ", self.MO_sampling.position.value.shape)
         print("Low resolution shape: ", self.MO2.position.value.shape)
         self.high_res_shape = self.MO_MapHR.position.value.shape
@@ -166,7 +168,7 @@ class AnimationStepController(Sofa.Core.Controller):
         
         self.vector = np.random.uniform(-1, 1, 2)
         self.versor = self.vector / np.linalg.norm(self.vector)
-        self.magnitude = np.random.uniform(100, 300)
+        self.magnitude = np.random.uniform(50, 80)
         self.externalForce = np.append(self.magnitude * self.versor, 0)
 
         #self.externalForce = [0, -60, 0]

@@ -65,8 +65,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('TetrahedronSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=500, tolerance=1e-08, threshold=1e-08, warmStart=True)
+        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=100, tolerance=1e-08, threshold=1e-08, warmStart=True)
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -122,7 +122,7 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -158,7 +158,7 @@ class AnimationStepController(Sofa.Core.Controller):
         if not self.efficient_sampling:
             self.vector = np.random.uniform(-1, 1, 2)
             self.versor = self.vector / np.linalg.norm(self.vector)
-            self.magnitude = np.random.uniform(100, 400)
+            self.magnitude = np.random.uniform(50, 80)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
         else:
             self.sample = self.count_m *self.num_versors + self.count_v
@@ -173,7 +173,6 @@ class AnimationStepController(Sofa.Core.Controller):
                 self.count_m = 0
                 self.count_v = 0
                 self.sampled = True
-        self.externalForce = np.array([-10, -10, 0])
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.cff.init()
