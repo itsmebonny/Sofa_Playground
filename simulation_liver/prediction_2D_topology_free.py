@@ -30,10 +30,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_liver/2024-06-17_11:18:07_estimation/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_liver/2024-06-20_10:49:16_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-06-17_13:50:10_high_res.pth') # efficient noisy
+        self.network.load_model('models/model_2024-06-20_15:14:00_high_res.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -63,8 +63,8 @@ class AnimationStepController(Sofa.Core.Controller):
         filename_low = 'mesh/liver_261.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 0.8", translation="0 1 0")
-        self.coarse.addObject('SparseGridTopology', n="20 20 1", position='@grid.position', name='coarseGridHigh')  # ================================================================================================================================================================================================================================================================================================================================================================================================================MODIFICARE QUESTO ================================================================================================================================================================================================================================================================================================================================================================================================================
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 1", translation="0 1 0")
+        self.coarse.addObject('SparseGridTopology', n="20 20 3", position='@grid.position', name='coarseGridHigh')  # ================================================================================================================================================================================================================================================================================================================================================================================================================MODIFICARE QUESTO ================================================================================================================================================================================================================================================================================================================================================================================================================
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
