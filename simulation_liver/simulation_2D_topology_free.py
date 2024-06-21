@@ -49,7 +49,7 @@ class AnimationStepController(Sofa.Core.Controller):
         sphereRadius=0.025
 
         filename_high = 'mesh/liver_2334.msh'
-        filename_low = 'mesh/liver_261.msh'
+        filename_low = 'mesh/liver_744.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
         self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 1", translation="0 1 0")

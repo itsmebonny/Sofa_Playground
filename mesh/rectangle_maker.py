@@ -199,7 +199,7 @@ def create_liver_like_mesh_3D(lc, depth=0.1):
 
     
     
-
+import numpy as np
 if __name__ == '__main__':
 
 
@@ -214,7 +214,8 @@ if __name__ == '__main__':
     elif mesh_type == "liver":
         gmsh.initialize(sys.argv)
         gmsh.model.add("liver")
-        create_liver_like_mesh_3D(1.3, 0.5)
+        for i in np.arange(1, 3, 0.1):
+            create_liver_like_mesh_3D(i, 0.5)
         gmsh.finalize()
     else:
         print("Invalid mesh type")
