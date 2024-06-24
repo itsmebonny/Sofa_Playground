@@ -35,10 +35,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_liver/2024-06-20_10:49:16_estimation/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_liver/2024-06-21_14:40:07_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-06-20_16:05:25_high_res.pth') # efficient noisy
+        self.network.load_model('models/model_2024-06-24_10:12:51_high_res_744.pth') # efficient noisy
         self.mesh_errors = []
         
         self.mesh_relative_errors = []
@@ -70,7 +70,7 @@ class AnimationStepController(Sofa.Core.Controller):
         sphereRadius=0.025
 
         filename_high = 'mesh/liver_2334.msh'
-        filename_low = 'mesh/liver_261.msh'
+        filename_low = 'mesh/liver_744.msh'
 
 
         self.coarse = rootNode.addChild('SamplingNodes')

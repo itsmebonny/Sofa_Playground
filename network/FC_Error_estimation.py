@@ -158,13 +158,13 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_liver/2024-06-21_14:40:07_estimation/train'
+    data_dir = 'npy_liver/2024-06-24_14:27:33_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
     trainer = Trainer(data_dir, 32, 0.001, 1000)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_high_res_744')
+    trainer.save_model(f'model_{training_time}_high_res_447')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))
