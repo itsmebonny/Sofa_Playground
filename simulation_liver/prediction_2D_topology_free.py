@@ -1,4 +1,5 @@
 from httplib2 import ProxiesUnavailableError
+from pyparsing import rest_of_line
 import Sofa
 import SofaRuntime
 import numpy as np 
@@ -30,7 +31,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_liver/2024-06-26_16:59:46_estimation/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_liver/2024-06-26_16:59:46_estimation_FHD/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
         self.network.load_model('models/model_2024-06-27_09:20:51_FHD.pth') # efficient noisy
@@ -172,7 +173,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.magnitude = np.random.uniform(50, 80)
         self.externalForce = np.append(self.magnitude * self.versor, 0)
 
-        #self.externalForce = [0, -60, 0]
+        self.externalForce = [0, -60, 0]
         # self.externalForce_LR = [0, -60, 0]
 
         self.exactSolution.removeObject(self.cff)
@@ -189,6 +190,10 @@ class AnimationStepController(Sofa.Core.Controller):
 
     def onAnimateEndEvent(self, event):
         
+        # compute the displacement between the high and low resolution solutions
+       
+
+
 
         coarse_pos = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
         
@@ -232,7 +237,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.MO_MapLR.position.value = self.MO_MapLR.position.value + U
 
-
+        
 
             # err = np.linalg.norm(self.MO1_LR.position.value - self.MO_training.position.value)
             # print(f"Prediction error: {err}")
@@ -265,6 +270,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.compute_metrics()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
+
+
+
+   
+
 
     def compute_metrics(self):
         """

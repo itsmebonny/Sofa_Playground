@@ -231,7 +231,20 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.MO_training.position.value = self.MO_training.position.value + U
 
+        U_high = self.compute_displacement(self.MO1)
+        U_low = self.compute_displacement(self.MO2)
 
+        rest_position_high = self.compute_rest_position(self.MO1)
+        rest_position_low = self.compute_rest_position(self.MO2)
+        rest_postion_training = self.compute_rest_position(self.MO_training)
+
+        if not os.path.exists('interpolation_tests'):
+            os.mkdir('interpolation_tests')
+        np.save(f'interpolation_tests/U_high.npy', U_high)
+        np.save(f'interpolation_tests/U_low.npy', U_low)
+        np.save(f'interpolation_tests/rest_position_high.npy', rest_position_high)
+        np.save(f'interpolation_tests/rest_position_low.npy', rest_position_low)
+        np.save(f'interpolation_tests/rest_position_training.npy', rest_postion_training)
 
             # err = np.linalg.norm(self.MO1_LR.position.value - self.MO_training.position.value)
             # print(f"Prediction error: {err}")
@@ -279,6 +292,16 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MSE_error.append((error.T @ error) / error.shape[0])
         self.l2_deformation.append(np.linalg.norm(gt))
         self.MSE_deformation.append((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0])
+
+    def compute_displacement(self, mechanical_object):
+        # Compute the displacement between the high and low resolution solutions
+        U = mechanical_object.position.value.copy() - mechanical_object.rest_position.value.copy()
+        return U
+    
+    def compute_rest_position(self, mechanical_object):
+        # Compute the position of the high resolution solution
+        return mechanical_object.rest_position.value.copy()
+
 
     def close(self):
 

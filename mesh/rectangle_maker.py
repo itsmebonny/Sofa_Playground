@@ -197,13 +197,74 @@ def create_liver_like_mesh_3D(lc, depth=0.1):
     # Launch the GUI to see the results
     gmsh.fltk.run()
 
+
+
+def mesh_stl_with_char_length(stl_file, max_char_length):
+    import math
+    gmsh.initialize()
+
+    # Add a new model
+    gmsh.model.add("STL to Mesh")
+
+    # Import the STL file
+    gmsh.merge(stl_file)
+    # angle = 40
+
+    # # For complex geometries, patches can be too complex, too elongated or too
+    # # large to be parametrized; setting the following option will force the
+    # # creation of patches that are amenable to reparametrization:
+    # forceParametrizablePatches = 0
+
+    # # For open surfaces include the boundary edges in the classification
+    # # process:
+    # includeBoundary = True
+
+    # # Force curves to be split on given angle:
+    # curveAngle = 90
+
+    # gmsh.model.mesh.classifySurfaces(angle * math.pi / 180., includeBoundary,
+    #                                  forceParametrizablePatches,
+    #                                  curveAngle * math.pi / 180.)
+
+    # gmsh.model.mesh.createGeometry()
+    n = gmsh.model.getDimension()
+    s = gmsh.model.getEntities(n)
+    l = gmsh.model.geo.addSurfaceLoop([s[i][1] for i in range(len(s))])
+    gmsh.model.geo.addVolume([l])
+    print("Volume added")
+    gmsh.model.geo.synchronize()
+
+    # Set characteristic length
+    # gmsh.option.setNumber("Geometry.Tolerance", 1e-3)
+    # gmsh.option.setNumber("Mesh.AngleToleranceFacetOverlap", 0.1)
+    gmsh.option.setNumber("Mesh.Algorithm3D", 1)  # 1=Delaunay, 4=Frontal, 7=MMG3D, 10=HXT
+    #gmsh.option.setNumber("Mesh.CharacteristicLengthMin", min_char_length)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", max_char_length)
+    # gmsh.option.setNumber("Mesh.CharacteristicLengthFactor", 5)
+    
+    # Generate 3D mesh
+    gmsh.model.mesh.generate(3)
+    nodes = gmsh.model.mesh.getNodes()
+    nb_nodes = len(nodes[0])
+
+
+    # Save the mesh to a file
+    gmsh.write(f"mesh/liver_{nb_nodes}.msh")
+
+    gmsh.fltk.run()
+
+
+
+
     
     
 import numpy as np
+import pygalmesh
 if __name__ == '__main__':
 
 
-    mesh_type = "liver"
+    mesh_type = "STL"
+    input_stl_file = "mesh/liver_lowres.stl"
 
 
     if mesh_type == "rectangle":
@@ -218,7 +279,11 @@ if __name__ == '__main__':
             create_liver_like_mesh_3D(i, 0.5)
         gmsh.finalize()
     else:
-        print("Invalid mesh type")
+        for i in np.arange(0.4, 0.6, 0.02):
+            mesh_stl_with_char_length(input_stl_file, i)
+            gmsh.finalize()
+            print("STL mode")
+
         sys.exit(1)
 
 

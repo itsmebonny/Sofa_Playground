@@ -13211,3 +13211,9 @@
 
 --- NEW SESSION: 26/06/2024 15:29:24 ---
 /HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 27/06/2024 11:46:29 ---
+/LowResSolution2D/ParallelCGLinearSolver.nbThreads = 12
+/HighResSolution2D/ParallelCGLinearSolver.nbThreads = 12
+/LowResSolution2D/ParallelCGLinearSolver.nbThreads = 6
+/HighResSolution2D/ParallelCGLinearSolver.nbThreads = 5

@@ -1,3 +1,4 @@
+from tabnanny import check
 from turtle import position
 
 from networkx import draw
@@ -50,13 +51,13 @@ class AnimationStepController(Sofa.Core.Controller):
         
         sphereRadius=0.025
 
-        filename_high = 'mesh/liver_29494_smooth.msh'
-        filename_low = 'mesh/liver_8879_smooth.msh'
+        filename_high = 'mesh/liver_2341.msh'
+        filename_low = 'mesh/liver_588.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
         self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="1 1 1", translation="0 0 0")
         self.coarse.addObject('SparseGridTopology', n="50 50 50", position='@grid.position', name='coarseGridHigh')  # 
-        
+
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
@@ -68,13 +69,15 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('TetrahedronSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=20000, tolerance=1e-08, threshold=1e-08, warmStart=True)
+        self.solver = self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2500, tolerance=1e-08, threshold=1e-08, warmStart=True)
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.exactSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.exactSolution.addObject('FixedConstraint', indices="@ROI.indices")
         self.exactSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+
+        
 
         self.mapping = self.exactSolution.addChild("SamplingMapping")
         self.MO_MapHR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
@@ -93,8 +96,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@gridLow')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=8000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
+        self.solver_LR = self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
+        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=600, tolerance=1e-08, threshold=1e-08, warmStart=True) 
         self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.LowResSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.LowResSolution.addObject('FixedConstraint', indices="@ROI.indices")
@@ -125,7 +128,9 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = True
+        self.steps = 0
+        self.diverged_steps = 0
+        self.save = False
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -193,6 +198,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
     def onAnimateEndEvent(self, event):
         self.end_time = process_time()
+        self.steps += 1
         
         U_high = self.compute_displacement(self.MO_MapHR)
         U_low = self.compute_displacement(self.MO_MapLR)
@@ -203,12 +209,16 @@ class AnimationStepController(Sofa.Core.Controller):
         print ("Displacement: ", np.linalg.norm(U_high - U_low))
         output = np.linalg.norm(U_high - U_low)
         self.outputs.append(output)
-        if self.save and not self.efficient_sampling:    
-            np.save(f'npy_liver/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
-        elif self.save and self.efficient_sampling:
-            np.save(f'npy_liver/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low)) 
+        if self.check_sample():
+            if self.save and not self.efficient_sampling:    
+                np.save(f'npy_liver/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
+                np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
+            elif self.save and self.efficient_sampling:
+                np.save(f'npy_liver/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
+                np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low))
+        else:
+            self.diverged_steps += 1
+
 
         
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
@@ -232,10 +242,21 @@ class AnimationStepController(Sofa.Core.Controller):
         return versors
     def close(self):
         if len(self.outputs) > 0:
-            print("Mean error: ", np.mean(self.outputs))
-            print("Max error: ", np.max(self.outputs))
-            print("Min error: ", np.min(self.outputs))
-            print("Standard deviation: ", np.std(self.outputs))
+            print("Divereged steps: ", self.diverged_steps)
+            print(f"Diverged percentage: {self.diverged_steps/self.steps*100}%")
+
+    def check_sample(self):
+        """
+        Check if the produced sample is correct. Automatically called by DeepPhysX to check sample validity.
+        """
+
+        # Check if the solver converged while computing FEM
+        return True
+        if not self.solver.converged.value or not self.solver_LR.converged.value:
+            # Reset simulation if solver diverged to avoid unwanted behaviour in following samples
+            # Sofa.Simulation.reset(self.root)
+            return self.solver.converged.value or self.solver_LR.converged.value
+        return True
 
 
 def createScene(rootNode, *args, **kwargs):

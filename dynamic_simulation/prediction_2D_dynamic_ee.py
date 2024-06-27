@@ -56,7 +56,7 @@ class AnimationStepController(Sofa.Core.Controller):
         sphereRadius=0.025
 
 
-        sself.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
+        self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
         self.exactSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_1166.msh')
         self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
