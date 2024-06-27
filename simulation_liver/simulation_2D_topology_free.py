@@ -1,4 +1,6 @@
 from turtle import position
+
+from networkx import draw
 import Sofa
 import SofaRuntime
 import numpy as np 
@@ -48,12 +50,13 @@ class AnimationStepController(Sofa.Core.Controller):
         
         sphereRadius=0.025
 
-        filename_high = 'mesh/liver_2334.msh'
-        filename_low = 'mesh/liver_447.msh'
+        filename_high = 'mesh/liver_29494_smooth.msh'
+        filename_low = 'mesh/liver_8879_smooth.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 1", translation="0 1 0")
-        self.coarse.addObject('SparseGridTopology', n="20 20 3", position='@grid.position', name='coarseGridHigh')  # ================================================================================================================================================================================================================================================================================================================================================================================================================MODIFICARE QUESTO ================================================================================================================================================================================================================================================================================================================================================================================================================
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="1 1 1", translation="0 0 0")
+        self.coarse.addObject('SparseGridTopology', n="50 50 50", position='@grid.position', name='coarseGridHigh')  # 
+        
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
@@ -66,11 +69,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=100, tolerance=1e-08, threshold=1e-08, warmStart=True)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=20000, tolerance=1e-08, threshold=1e-08, warmStart=True)
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
-        self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.exactSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
+        self.exactSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
+        self.exactSolution.addObject('FixedConstraint', indices="@ROI.indices")
+        self.exactSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.exactSolution.addChild("SamplingMapping")
@@ -91,11 +94,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=500, tolerance=1e-08, threshold=1e-08, warmStart=True) 
+        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=8000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
         self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
-        self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
+        self.LowResSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
+        self.LowResSolution.addObject('FixedConstraint', indices="@ROI.indices")
+        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
@@ -147,7 +150,7 @@ class AnimationStepController(Sofa.Core.Controller):
     
 
     def onAnimateBeginEvent(self, event):
-
+        
         # reset positions
         self.MO1.position.value = self.MO1.rest_position.value
         self.MO2.position.value = self.MO2.rest_position.value
@@ -156,10 +159,11 @@ class AnimationStepController(Sofa.Core.Controller):
             print ("================== The simulation is over ==================\n")
         
         if not self.efficient_sampling:
-            self.vector = np.random.uniform(-1, 1, 2)
-            self.versor = self.vector / np.linalg.norm(self.vector)
-            self.magnitude = np.random.uniform(50, 80)
-            self.externalForce = np.append(self.magnitude * self.versor, 0)
+            self.z = np.random.uniform(-1, 1)
+            self.phi = np.random.uniform(0, 2*np.pi)
+            self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
+            self.magnitude = np.random.uniform(20, 50)
+            self.externalForce = self.magnitude * self.versor
         else:
             self.sample = self.count_m *self.num_versors + self.count_v
             self.externalForce = np.append(self.magnitudes[self.count_m] * self.versors[self.count_v], 0)
@@ -182,16 +186,14 @@ class AnimationStepController(Sofa.Core.Controller):
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.cffLR.init()
 
-
         self.start_time = process_time()
+        
 
 
 
     def onAnimateEndEvent(self, event):
-        print("Number of points with L2 norm < 0.0001: ", np.sum(np.linalg.norm(self.MO_MapHR.rest_position.value - self.MO_MapLR.rest_position.value, axis=1) < 0.0001))
         self.end_time = process_time()
-        print("Computation time for 1 time step: ", self.end_time - self.start_time)
-        print("External force: ", np.linalg.norm(self.externalForce))
+        
         U_high = self.compute_displacement(self.MO_MapHR)
         U_low = self.compute_displacement(self.MO_MapLR)
         # cut the z component
@@ -207,6 +209,10 @@ class AnimationStepController(Sofa.Core.Controller):
         elif self.save and self.efficient_sampling:
             np.save(f'npy_liver/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
             np.save(f'npy_liver/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low)) 
+
+        
+        print("Computation time for 1 time step: ", self.end_time - self.start_time)
+        print("External force: ", np.linalg.norm(self.externalForce))
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
         U = mechanical_object.position.value.copy() - mechanical_object.rest_position.value.copy()

@@ -115,7 +115,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.child_nodes[-1].addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@grid')
             self.mechanical_objects.append(self.child_nodes[-1].addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid'))
             self.child_nodes[-1].addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-            self.child_nodes[-1].addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=100, tolerance=1e-08, threshold=1e-08, warmStart=True)
+            self.child_nodes[-1].addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=-nb_nodes*4/3+4300/3, tolerance=1e-08, threshold=1e-08, warmStart=True)
             self.child_nodes[-1].addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
             self.child_nodes[-1].addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
             self.child_nodes[-1].addObject('FixedConstraint', indices='@ROI.indices')
