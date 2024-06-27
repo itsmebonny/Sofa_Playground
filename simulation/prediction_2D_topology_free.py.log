@@ -31,3 +31,14 @@
 
 --- NEW SESSION: 12/06/2024 10:47:18 ---
 /HighResSolution2D/DOFs.showColor = 1 1 1 1
+
+--- NEW SESSION: 27/06/2024 17:22:17 ---
+/LowResSolution2D/DOFs.showIndices = 1
+/LowResSolution2D/DOFs.showColor = 1 1 1 1
+/LowResSolution2D/CoarseMesh/coarseDOFs.showIndices = 0
+/LowResSolution2D/CoarseMesh/coarseDOFs.showColor = 1 1 1 1
+
+--- NEW SESSION: 27/06/2024 17:25:59 ---
+/LowResSolution2D/DOFs.showObject = 1
+/LowResSolution2D/DOFs.showIndices = 0
+/LowResSolution2D/DOFs.showColor = 1 1 1 1

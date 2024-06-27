@@ -162,8 +162,8 @@ class AnimationStepController(Sofa.Core.Controller):
     def onAnimateBeginEvent(self, event):
 
         # reset positions
-        self.MO1.position.value = self.MO1.rest_position.value
-        self.MO2.position.value = self.MO2.rest_position.value
+        # self.MO1.position.value = self.MO1.rest_position.value
+        # self.MO2.position.value = self.MO2.rest_position.value
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
         
         self.vector = np.random.uniform(-1, 1, 2)
@@ -231,20 +231,22 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.MO_training.position.value = self.MO_training.position.value + U
 
-        U_high = self.compute_displacement(self.MO1)
-        U_low = self.compute_displacement(self.MO2)
+        # U_high = self.compute_displacement(self.MO1)
+        # U_low = self.compute_displacement(self.MO2)
+        # U_training = self.compute_displacement(self.MO_training)
 
-        rest_position_high = self.compute_rest_position(self.MO1)
-        rest_position_low = self.compute_rest_position(self.MO2)
-        rest_postion_training = self.compute_rest_position(self.MO_training)
+        # rest_position_high = self.compute_rest_position(self.MO1)
+        # rest_position_low = self.compute_rest_position(self.MO2)
+        # rest_postion_training = self.compute_rest_position(self.MO_training)
 
-        if not os.path.exists('interpolation_tests'):
-            os.mkdir('interpolation_tests')
-        np.save(f'interpolation_tests/U_high.npy', U_high)
-        np.save(f'interpolation_tests/U_low.npy', U_low)
-        np.save(f'interpolation_tests/rest_position_high.npy', rest_position_high)
-        np.save(f'interpolation_tests/rest_position_low.npy', rest_position_low)
-        np.save(f'interpolation_tests/rest_position_training.npy', rest_postion_training)
+        # if not os.path.exists('interpolation_tests'):
+        #     os.mkdir('interpolation_tests')
+        # np.save(f'interpolation_tests/U_high.npy', U_high)
+        # np.save(f'interpolation_tests/U_low.npy', U_low)
+        # np.save(f'interpolation_tests/U_training.npy', U_training)
+        # np.save(f'interpolation_tests/rest_position_high.npy', rest_position_high)
+        # np.save(f'interpolation_tests/rest_position_low.npy', rest_position_low)
+        # np.save(f'interpolation_tests/rest_position_training.npy', rest_postion_training)
 
             # err = np.linalg.norm(self.MO1_LR.position.value - self.MO_training.position.value)
             # print(f"Prediction error: {err}")
@@ -266,10 +268,8 @@ class AnimationStepController(Sofa.Core.Controller):
         #print("Before correction: ", self.MO2.position.value)
         corrected_displacement = np.append(corrected_displacement, np.zeros((interpolate_positions.shape[0], 1)), axis=1)
         self.MO2.position.value = interpolate_positions + corrected_displacement
-        #print("After correction: ", self.MO2.position.value)
 
-        # ============== UPDATE THE NN MODEL ==============
-        # self.MO_NN.position.value = self.MO2.position.value + U
+
 
         self.end_time = process_time()
         # error = np.linalg.norm(self.MO_NN.position.value - self.MO1.position.value)
