@@ -119,7 +119,7 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.start_time = 0
         self.count = 0
         if self.save:

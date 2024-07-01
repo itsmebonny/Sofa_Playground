@@ -53,7 +53,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
+        self.exactSolution.addObject('EulerImplicitSolver', name='ODE', newton_iterations="20", printLog=True)
         self.exactSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)

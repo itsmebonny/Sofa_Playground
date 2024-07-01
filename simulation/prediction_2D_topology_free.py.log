@@ -42,3 +42,20 @@
 /LowResSolution2D/DOFs.showObject = 1
 /LowResSolution2D/DOFs.showIndices = 0
 /LowResSolution2D/DOFs.showColor = 1 1 1 1
+
+--- NEW SESSION: 28/06/2024 09:53:12 ---
+/LowResSolution2D/visual/OglModel.material = Default Diffuse 1 1 0 0 0.2 Ambient 1 0.2 0 0 0.2 Specular 0 1 0 0 0.2 Emissive 0 1 0 0 0.2 Shininess 0 45 
+
+--- NEW SESSION: 01/07/2024 16:04:02 ---
+/HighResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/HighResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/HighResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+
+--- NEW SESSION: 01/07/2024 16:06:41 ---
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1
+/LowResSolution2D/ConstantForceField.showColor = 0.2 0.2 0.8 1

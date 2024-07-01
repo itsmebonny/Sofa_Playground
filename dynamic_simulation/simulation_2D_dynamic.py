@@ -130,7 +130,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.magnitude = np.random.uniform(10, 40)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
         self.count += 1
-        self.externalForce = [0, -20, 0]
+        #self.externalForce = [0, -20, 0]
 
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")

@@ -20,7 +20,7 @@ from parameters_2D import p_grid, p_grid_LR, p_grid_test
 from scipy.interpolate import RBFInterpolator, griddata
 
 import SofaCaribou
-SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
+#SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
 
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
@@ -31,15 +31,15 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_liver/2024-06-26_16:59:46_estimation_FHD/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_gmsh/2024-07-01_16:26:27_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-06-27_09:20:51_FHD.pth') # efficient noisy
+        self.network.load_model('models/model_2024-07-01_16:38:09.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
         rootNode.addObject('RequiredPlugin', name='MultiThreading')
-        rootNode.addObject('RequiredPlugin', name='SofaCaribou')
+        #rootNode.addObject('RequiredPlugin', name='SofaCaribou')
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Projective') # Needed to use components [FixedProjectiveConstraint]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Engine.Select') # Needed to use components [BoxROI]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.LinearSolver.Iterative') # Needed to use components [CGLinearSolver]  
@@ -52,16 +52,17 @@ class AnimationStepController(Sofa.Core.Controller):
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.StateContainer') # Needed to use components [MechanicalObject]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Dynamic') # Needed to use components [TriangleSetTopologyContainer]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Grid') # Needed to use components [RegularGridTopology]  
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Visual') # Needed to use components [VisualStyle]  
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Visual') # Needed to use components [VisualStyle]
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.IO.Mesh') # Needed to use components [MeshGmshLoader]
 
         rootNode.addObject('DefaultAnimationLoop')
         rootNode.addObject('DefaultVisualManagerLoop')
-        rootNode.addObject('VisualStyle', name="visualStyle", displayFlags="showBehaviorModels showCollisionModels")
+        rootNode.addObject('VisualStyle', name="visualStyle", displayFlags="showBehaviorModels")# showCollisionModels")
         
         sphereRadius=0.025
 
-        filename_high = 'mesh/liver_29494_smooth.msh'
-        filename_low = 'mesh/liver_8879_smooth.msh'
+        filename_high = 'mesh/liver_2341.msh'
+        filename_low = 'mesh/liver_588.msh'
 
         self.coarse = rootNode.addChild('SamplingNodes')
         self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="1 1 1", translation="0 0 0")
@@ -83,7 +84,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.exactSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.exactSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.exactSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
+        self.exactSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.exactSolution.addChild("SamplingMapping")
@@ -93,7 +94,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
         self.exactSolution.addChild("visual")
-        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 0.5')
+        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 1')
         self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
         # same object with different resolution
@@ -108,7 +109,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.LowResSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.LowResSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
+        self.LowResSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
@@ -126,7 +127,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsLow', output_topology='@triangleTopoLow')
 
         self.LowResSolution.addChild("visual")
-        self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0 0.2')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0 1')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
 
@@ -168,12 +169,13 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2.position.value = self.MO2.rest_position.value
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
         
-        self.vector = np.random.uniform(-1, 1, 2)
-        self.versor = self.vector / np.linalg.norm(self.vector)
-        self.magnitude = np.random.uniform(50, 80)
-        self.externalForce = np.append(self.magnitude * self.versor, 0)
+        self.z = np.random.uniform(-1, 1)
+        self.phi = np.random.uniform(0, 2*np.pi)
+        self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
+        self.magnitude = np.random.uniform(10, 50)
+        self.externalForce = self.magnitude * self.versor
 
-        self.externalForce = [0, -60, 0]
+        # self.externalForce = [0, -60, 0]
         # self.externalForce_LR = [0, -60, 0]
 
         self.exactSolution.removeObject(self.cff)
@@ -197,7 +199,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         coarse_pos = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
         
-        print("Coarse position: ", coarse_pos.shape)
+        # print("Coarse position: ", coarse_pos.shape)
         # cut the z component
         # coarse_pos = coarse_pos[:, :2]
         # print("Coarse position shape: ", coarse_pos.shape)
@@ -243,22 +245,21 @@ class AnimationStepController(Sofa.Core.Controller):
             # print(f"Prediction error: {err}")
             # self.errs.append(err)
                 
-        # positions = self.MO_MapLR.rest_position.value.copy()[:, :2]
-        # #print("Positions: ", positions)
-        # #print("Rest position shape: ", self.MO_training.position.value)
-        # displacement = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
-        # displacement = displacement[:, :2]
-        # print("Displacement: ", displacement)
+        positions = self.MO_MapLR.rest_position.value.copy()
+        #print("Positions: ", positions)
+        #print("Rest position shape: ", self.MO_training.position.value)
+        displacement = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
+        #print("Displacement: ", displacement)
 
-        # interpolator = RBFInterpolator(positions, displacement, neighbors=5, kernel="thin_plate_spline")
-        # interpolate_positions = self.MO2.rest_position.value.copy()
-        # interpolate_positions_2D = self.MO2.rest_position.value.copy()[:, :2]
-        # corrected_displacement = interpolator(interpolate_positions_2D)
+        interpolator = RBFInterpolator(positions, displacement, neighbors=10, kernel="thin_plate_spline")
+        interpolate_positions = self.MO2.rest_position.value.copy()
+        corrected_displacement = interpolator(interpolate_positions)
 
         # print("Corrected displacement: ", corrected_displacement)
-        # #print("Before correction: ", self.MO2.position.value)
-        # corrected_displacement = np.append(corrected_displacement, np.zeros((interpolate_positions.shape[0], 1)), axis=1)
-        # self.MO2.position.value = interpolate_positions + corrected_displacement
+        #print("Before correction: ", self.MO2.position.value)
+        
+        self.MO2.position.value = interpolate_positions + corrected_displacement
+        self.visual_model = interpolate_positions + corrected_displacement
         # #print("After correction: ", self.MO2.position.value)
 
         # ============== UPDATE THE NN MODEL ==============
@@ -296,8 +297,8 @@ class AnimationStepController(Sofa.Core.Controller):
 
         if len(self.l2_error) > 0:
             print("\nL2 ERROR Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.l2_error), 6)} ± {np.round(np.std(self.l2_error), 6)} mm")
-            print(f"\t- Extrema : {np.round(np.min(self.l2_error), 6)} -> {np.round(np.max(self.l2_error), 6)} mm")
+            print(f"\t- Distribution : {np.round(np.mean(self.l2_error), 6)} ± {np.round(np.std(self.l2_error), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.l2_error), 6)} -> {np.round(np.max(self.l2_error), 6)} m")
             relative_error = np.array(self.l2_error) / np.array(self.l2_deformation)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")

@@ -1,3 +1,4 @@
+from cv2 import normalize
 import numpy as np 
 import torch as th
 import torch.nn as nn
@@ -18,7 +19,7 @@ class FullyConnected(nn.Module):
         self.fc1 = nn.Linear(input_size, 256)
         self.fc2 = nn.Linear(256, 512)
         self.fc3 = nn.Linear(512, 1024)
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.25)
         self.fc4 = nn.Linear(1024, output_size)
     
     def forward(self, x):
@@ -28,6 +29,18 @@ class FullyConnected(nn.Module):
         x = self.dropout(x)
         x = self.fc4(x)
         return x
+    
+
+class RelativeMSELoss(nn.Module):
+    # Custom loss function that computes the mean squared error between the predicted and true values and normalizes it by the true value
+    def __init__(self):
+        super(RelativeMSELoss, self).__init__()
+
+    def forward(self, pred, true):
+        loss = th.mean(th.square(pred - true)) 
+        normalizer = th.mean(th.square(true))
+        return loss/normalizer
+    
     
 
 class Data(Dataset):
@@ -98,12 +111,13 @@ class Trainer:
         self.model = FullyConnected(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=20, verbose=True)
+        self.criterion = RelativeMSELoss()
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=20)
         
     
     def load_data(self):
         data = Data(self.data_dir)
-        train_data, val_data = train_test_split(data, test_size=0.3)
+        train_data, val_data = train_test_split(data, test_size=0.2)
         return train_data, val_data, data.input_size, data.output_size, data.normalized
     
     def train(self):
@@ -158,13 +172,13 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_liver/2024-06-26_16:59:46_estimation/train'
+    data_dir = 'npy_gmsh/2024-07-01_16:26:27_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
-    trainer = Trainer(data_dir, 32, 0.001, 100)
+    trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_FHD')
+    trainer.save_model(f'model_{training_time}')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

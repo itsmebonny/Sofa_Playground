@@ -74,7 +74,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.exactSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.exactSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.exactSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
+        self.exactSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         
@@ -97,11 +97,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.solver_LR = self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=600, tolerance=1e-08, threshold=1e-08, warmStart=True) 
+        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
         self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
         self.LowResSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.LowResSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-4.1 3.9 -0.1 -2.9 5.1 0.6", drawBoxes=True)
+        self.LowResSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
