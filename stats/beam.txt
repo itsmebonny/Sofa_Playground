@@ -1,0 +1,13 @@
+Beam with 75 nodes and randomly applied loads
+
+L2 ERROR Statistics :
+        - Distribution : 0.122444 ± 0.070283 mm
+        - Extrema : 0.014677 -> 0.516849 mm
+        - Relative Distribution : 44.401837 ± 243.789298 %
+        - Relative Extrema : 0.119067 -> 5282.034533 %
+
+MSE Statistics :
+        - Distribution : 8.9e-05 ± 0.000101 mm²
+        - Extrema : 1e-06 -> 0.001187 mm²
+        - Relative Distribution : 204.682483 ± 2857.380366 %
+        - Relative Extrema : 4.7e-05 -> 92999.629357 %

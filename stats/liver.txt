@@ -1,0 +1,13 @@
+Coarse mesh 588 nodes
+
+L2 ERROR Statistics :
+        - Distribution : 0.670619 ± 0.387442 m
+        - Extrema : 0.134627 -> 2.584361 m
+        - Relative Distribution : 7.723353 ± 5.965123 %
+        - Relative Extrema : 1.187841 -> 54.068356 %
+
+MSE Statistics :
+        - Distribution : 1.2e-05 ± 1.5e-05 mm²
+        - Extrema : 0.0 -> 0.00013 mm²
+        - Relative Distribution : 0.317443 ± 0.74072 %
+        - Relative Extrema : 0.004703 -> 9.744624 %

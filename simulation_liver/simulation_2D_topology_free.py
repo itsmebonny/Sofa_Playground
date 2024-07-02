@@ -130,7 +130,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.outputs = []
         self.steps = 0
         self.diverged_steps = 0
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -167,7 +167,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.z = np.random.uniform(-1, 1)
             self.phi = np.random.uniform(0, 2*np.pi)
             self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-            self.magnitude = np.random.uniform(20, 50)
+            self.magnitude = np.random.uniform(0, 40)
             self.externalForce = self.magnitude * self.versor
         else:
             self.sample = self.count_m *self.num_versors + self.count_v
@@ -242,7 +242,7 @@ class AnimationStepController(Sofa.Core.Controller):
         return versors
     def close(self):
         if len(self.outputs) > 0:
-            print("Divereged steps: ", self.diverged_steps)
+            print("Diverged steps: ", self.diverged_steps)
             print(f"Diverged percentage: {self.diverged_steps/self.steps*100}%")
 
     def check_sample(self):

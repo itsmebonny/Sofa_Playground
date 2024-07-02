@@ -31,10 +31,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_gmsh/2024-07-01_16:26:27_estimation/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_liver/2024-07-02_10:07:55_estimation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-07-01_16:38:09.pth') # efficient noisy
+        self.network.load_model('models/model_2024-07-02_14:03:31.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -172,7 +172,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.z = np.random.uniform(-1, 1)
         self.phi = np.random.uniform(0, 2*np.pi)
         self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-        self.magnitude = np.random.uniform(10, 50)
+        self.magnitude = np.random.uniform(20, 50)
         self.externalForce = self.magnitude * self.versor
 
         # self.externalForce = [0, -60, 0]

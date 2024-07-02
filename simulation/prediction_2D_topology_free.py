@@ -301,6 +301,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.compute_metrics()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
+        print("L2 error: ", self.l2_error[-1])
+        print("L2 deformation: ", self.l2_deformation[-1])
+        print("Relative error: ", self.l2_error[-1]/np.linalg.norm(self.MO_training.position.value - self.MO_training.rest_position.value))
 
     def compute_metrics(self):
         """

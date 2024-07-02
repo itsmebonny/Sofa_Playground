@@ -111,7 +111,7 @@ class Trainer:
         self.model = FullyConnected(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-        self.criterion = RelativeMSELoss()
+        #self.criterion = RelativeMSELoss()
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=20)
         
     
@@ -172,7 +172,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_gmsh/2024-07-01_16:26:27_estimation/train'
+    data_dir = 'npy_liver/2024-07-02_10:07:55_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
     trainer = Trainer(data_dir, 32, 0.001, 500)
