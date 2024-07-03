@@ -77,8 +77,6 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
-        
-
         self.mapping = self.exactSolution.addChild("SamplingMapping")
         self.MO_MapHR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
         #self.MO1_HR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')

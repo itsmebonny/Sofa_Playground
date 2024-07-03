@@ -103,7 +103,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.child_nodes[-1].addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
             self.mechanical_objects.append(self.child_nodes[-1].addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid'))
             self.child_nodes[-1].addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-            self.child_nodes[-1].addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
+            self.child_nodes[-1].addObject('CGLinearSolver', iterations=300, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
             self.child_nodes[-1].addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
             self.child_nodes[-1].addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
             self.child_nodes[-1].addObject('FixedConstraint', indices='@ROI.indices')

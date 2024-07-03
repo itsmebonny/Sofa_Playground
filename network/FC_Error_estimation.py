@@ -82,7 +82,6 @@ class Data(Dataset):
                     if k == 0:
                         pool[i, j, k] = displacement[i, 2*j, 2*k]
                     else:
-                        # this must be fixed since it assumes that the pooling kernel is 2x2 and i'm not that a good computer scientist but works on my toy example
                         pool[i, j, k] = np.mean(displacement[i, 2*j:2*j+2, 2*k:2*k+2], axis=(0, 1))
         
         return pool

@@ -38,6 +38,69 @@ def create_rectangle(x_min, y_min, x_max, y_max, lc):
     gmsh.fltk.run()
 
 
+def create_beam(x_min, y_min, x_max, y_max, z_min, z_max, lc):
+    # Create the points
+    p1 = gmsh.model.geo.addPoint(x_min, y_min, z_min, lc)
+    p2 = gmsh.model.geo.addPoint(x_max, y_min, z_min, lc)
+    p3 = gmsh.model.geo.addPoint(x_max, y_max, z_min, lc)
+    p4 = gmsh.model.geo.addPoint(x_min, y_max, z_min, lc)
+    p5 = gmsh.model.geo.addPoint(x_min, y_min, z_max, lc)
+    p6 = gmsh.model.geo.addPoint(x_max, y_min, z_max, lc)
+    p7 = gmsh.model.geo.addPoint(x_max, y_max, z_max, lc)
+    p8 = gmsh.model.geo.addPoint(x_min, y_max, z_max, lc)
+
+    # Create the lines
+    l1 = gmsh.model.geo.addLine(p1, p2)
+    l2 = gmsh.model.geo.addLine(p2, p3)
+    l3 = gmsh.model.geo.addLine(p3, p4)
+    l4 = gmsh.model.geo.addLine(p4, p1)
+    l5 = gmsh.model.geo.addLine(p5, p6)
+    l6 = gmsh.model.geo.addLine(p6, p7)
+    l7 = gmsh.model.geo.addLine(p7, p8)
+    l8 = gmsh.model.geo.addLine(p8, p5)
+    l9 = gmsh.model.geo.addLine(p1, p5)
+    l10 = gmsh.model.geo.addLine(p2, p6)
+    l11 = gmsh.model.geo.addLine(p3, p7)
+    l12 = gmsh.model.geo.addLine(p4, p8)
+
+    # Create the curve loop
+    cl1 = gmsh.model.geo.addCurveLoop([l1, l2, l3, l4])
+    cl2 = gmsh.model.geo.addCurveLoop([l5, l6, l7, l8])
+    cl3 = gmsh.model.geo.addCurveLoop([-l9, l1, l10, -l5])
+    cl4 = gmsh.model.geo.addCurveLoop([-l3, l11, l7, -l12])
+    cl5 = gmsh.model.geo.addCurveLoop([l10, l6, -l11, -l2])
+    cl6 = gmsh.model.geo.addCurveLoop([l9, -l8, -l12, l4])
+
+    # Create the surface
+    s1 = gmsh.model.geo.addPlaneSurface([cl1])
+    s2 = gmsh.model.geo.addPlaneSurface([cl2])
+    s3 = gmsh.model.geo.addPlaneSurface([cl3])
+    s4 = gmsh.model.geo.addPlaneSurface([cl4])
+    s5 = gmsh.model.geo.addPlaneSurface([cl5])
+    s6 = gmsh.model.geo.addPlaneSurface([cl6])
+
+    # create the volume
+    v = gmsh.model.geo.addSurfaceLoop([s1, s2, s3, s4, s5, s6])
+    v = gmsh.model.geo.addVolume([v])
+
+    # Create a physical group for the beam
+    gmsh.model.addPhysicalGroup(3, [v], 1)
+    gmsh.model.setPhysicalName(3, 1, "beam")
+
+    # generate the mesh
+    gmsh.model.geo.synchronize()
+    gmsh.model.mesh.generate(3)
+
+    #compute the number of nodes
+    nodes = gmsh.model.mesh.getNodes()
+    nb_nodes = len(nodes[0])
+
+    # Save the mesh
+    gmsh.write(f"mesh/beam_{nb_nodes}.msh")
+
+    # Launch the GUI to see the results
+    gmsh.fltk.run()
+
 def create_liver_like_mesh(lc):
     """
     Create a liver like mesh
@@ -180,7 +243,7 @@ def create_liver_like_mesh_3D(lc, depth=0.1):
     
 
     # Extrude the surface to add depth
-    gmsh.model.geo.extrude([(2, s)], 0, 0, depth, [2])
+    gmsh.model.geo.extrude([(2, s)], 10, 10, depth, [2])
 
     gmsh.model.geo.synchronize()
 
@@ -263,7 +326,7 @@ import pygalmesh
 if __name__ == '__main__':
 
 
-    mesh_type = "STL"
+    mesh_type = "beam"
     input_stl_file = "mesh/liver_lowres.stl"
 
 
@@ -278,6 +341,13 @@ if __name__ == '__main__':
         for i in np.arange(1, 3, 0.1):
             create_liver_like_mesh_3D(i, 0.5)
         gmsh.finalize()
+    elif mesh_type == "beam":
+        
+        for i in np.arange(0.4, 0.6, 0.02):
+            gmsh.initialize(sys.argv)
+            gmsh.model.add("beam")
+            create_beam(0, -1, 10, 1, -1, 1, i)
+            gmsh.finalize()
     else:
         for i in np.arange(0.4, 0.6, 0.02):
             mesh_stl_with_char_length(input_stl_file, i)

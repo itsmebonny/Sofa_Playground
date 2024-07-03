@@ -35,10 +35,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_liver/2024-06-21_14:40:07_estimation/train', 32, 0.001, 1000)
+        self.network = Trainer('npy_liver/2024-07-02_10:07:55_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-06-24_10:12:51_high_res_744.pth') # efficient noisy
+        self.network.load_model('models/model_2024-07-02_14:03:31.pth') # efficient noisy
         self.mesh_errors = []
         
         self.mesh_relative_errors = []
@@ -69,13 +69,14 @@ class AnimationStepController(Sofa.Core.Controller):
         
         sphereRadius=0.025
 
-        filename_high = 'mesh/liver_2334.msh'
-        filename_low = 'mesh/liver_744.msh'
+        filename_high = 'mesh/liver_2341.msh'
+        filename_low = 'mesh/liver_588.msh'
 
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="0.8 0.8 1", translation="0 1 0")
-        self.coarse.addObject('SparseGridTopology', n="20 20 3", position='@grid.position', name='coarseGridHigh')  # ================================================================================================================================================================================================================================================================================================================================================================================================================MODIFICARE QUESTO ================================================================================================================================================================================================================================================================================================================================================================================================================
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="1 1 1", translation="0 0 0")
+        self.coarse.addObject('SparseGridTopology', n="50 50 50", position='@grid.position', name='coarseGridHigh')  
+
         self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
         self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 0 0')
@@ -88,11 +89,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=100, tolerance=1e-08, threshold=1e-08, warmStart=True)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2500, tolerance=1e-08, threshold=1e-08, warmStart=True)
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
+        self.exactSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.exactSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
+        self.exactSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.exactSolution.addChild("SamplingMapping")
@@ -115,11 +116,11 @@ class AnimationStepController(Sofa.Core.Controller):
             self.child_nodes[-1].addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@grid')
             self.mechanical_objects.append(self.child_nodes[-1].addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid'))
             self.child_nodes[-1].addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-            self.child_nodes[-1].addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=-nb_nodes*4/3+4300/3, tolerance=1e-08, threshold=1e-08, warmStart=True)
+            self.child_nodes[-1].addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2500, tolerance=1e-08, threshold=1e-08, warmStart=True)
             self.child_nodes[-1].addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-            self.child_nodes[-1].addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
+            self.child_nodes[-1].addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
             self.child_nodes[-1].addObject('FixedConstraint', indices='@ROI.indices')
-            self.child_nodes[-1].addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
+            self.child_nodes[-1].addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
             self.cffLRs.append(self.child_nodes[-1].addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1"))
             self.child_nodes[-1].addChild('CoarseMesh')
             # self.child_nodes[-1].CoarseMesh.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
@@ -140,11 +141,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=500, tolerance=1e-08, threshold=1e-08, warmStart=True) 
+        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
         self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 2.1 0.1 0.6")
+        self.LowResSolution.addObject('BoxROI', name='ROI', box="-2.3 3.2 -0.3 -1.2 2.9 0.8", drawBoxes=True)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box="-8.1 5.9 -0.1 -6.9 8.1 0.6")
+        self.LowResSolution.addObject('BoxROI', name='ROI2', box="2.1 3.9 -0.6 0.9 5.1 1.1", drawBoxes=True)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
@@ -239,10 +240,11 @@ class AnimationStepController(Sofa.Core.Controller):
             
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
         
-        self.theta = np.random.uniform(0, 2*np.pi)
-        self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
-        self.magnitude = np.random.uniform(50, 80)
-        self.externalForce = np.append(self.magnitude * self.versor, 0)
+        self.z = np.random.uniform(-1, 1)
+        self.phi = np.random.uniform(0, 2*np.pi)
+        self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
+        self.magnitude = np.random.uniform(20, 50)
+        self.externalForce = self.magnitude * self.versor
 
         # self.externalForce = [0, -40, 0]
         # self.externalForce_LR = [0, -60, 0]
