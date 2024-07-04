@@ -3,6 +3,7 @@ npy_gmsh/
 npy_GNN/
 models/
 npy_liver/
+npy_beam/
 .vscode/
 lastUsedGUI.ini
 .runSofa.ini

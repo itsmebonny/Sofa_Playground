@@ -1,0 +1,22 @@
+
+--- NEW SESSION: 14/06/2024 11:20:41 ---
+/HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+/HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 14/06/2024 11:23:00 ---
+/HighResSolution2D/SamplingMapping/SphereCollisionModel.color = 0 1 0 1
+/LowResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+/LowResSolution2D/DOFs.showColor = 1 1 1 1
+/HighResSolution2D/DOFs.showColor = 1 1 1 1
+
+--- NEW SESSION: 14/06/2024 11:27:14 ---
+/HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 28/06/2024 16:11:13 ---
+/HighResSolution2D/DOFs.showObject = 1
+/HighResSolution2D/DOFs.showColor = 1 1 1 1
+/HighResSolution2D/DOFs.showObjectScale = 0.5
+/HighResSolution2D/DOFs.showColor = 1 1 1 1
+/LowResSolution2D/DOFs.showColor = 1 1 1 1
+/LowResSolution2D/DOFs.showObject = 1
+/LowResSolution2D/DOFs.showColor = 1 0 0 1

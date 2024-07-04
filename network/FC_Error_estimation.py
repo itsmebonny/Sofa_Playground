@@ -171,7 +171,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_liver/2024-07-02_10:07:55_estimation/train'
+    data_dir = 'npy_beam/2024-07-04_10:40:16_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
     trainer = Trainer(data_dir, 32, 0.001, 500)
