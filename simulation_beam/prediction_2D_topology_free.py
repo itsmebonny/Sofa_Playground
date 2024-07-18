@@ -300,7 +300,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # print("Exact displacement first 5 nodes: ", self.MO1.position.value[:5] - self.MO1.rest_position.value[:5])
 
 
-        self.MO_MapLR.position.value = self.MO_MapLR.position.value + U
+        self.MO_MapLR.position.value = self.MO_MapLR.position.value.copy() + U
 
         
 
@@ -329,29 +329,35 @@ class AnimationStepController(Sofa.Core.Controller):
         # self.MO_NN.position.value = self.MO2.position.value + U
 
         self.end_time = process_time()
-        # error = np.linalg.norm(self.MO_NN.position.value - self.MO1.position.value)
-        # print(f"Prediction error: {error}")
-        self.compute_metrics()
+        pred = self.MO_MapLR.position.value.copy() - self.MO_MapLR.rest_position.value.copy()
+        gt = self.MO_MapHR.position.value.copy() - self.MO_MapHR.rest_position.value.copy()
+        self.compute_metrics(pred, gt)
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
+        
+        print("Error between node 491 and node 2457: ", np.linalg.norm(self.MO2.position.value[491] - self.MO1.position.value[2457]))
+        print("Error between node 11547: ", np.linalg.norm(self.MO_MapHR.position.value[11547] - self.MO_MapLR.position.value[11547]))
+        error = (pred - gt).reshape(-1)
+        print("L2 error divided by number of points: ", np.linalg.norm(error)**2 / error.shape[0])
+        print("MSE error: ", (error.T @ error) / error.shape[0])
 
 
 
    
 
 
-    def compute_metrics(self):
+    def compute_metrics(self, pred, gt):
         """
         Compute L2 error and MSE for each sample.
         """
 
-        pred = self.MO_MapLR.position.value - self.MO_MapLR.rest_position.value
-        gt = self.MO_MapHR.position.value - self.MO_MapHR.rest_position.value
+        # pred = self.MO_MapLR.position.value - self.MO_MapLR.rest_position.value
+        # gt = self.MO_MapHR.position.value - self.MO_MapHR.rest_position.value
 
         # Compute metrics only for non-small displacements
         if np.linalg.norm(gt) > 1e-6:
             error = (gt - pred).reshape(-1)
-            self.l2_error.append(np.linalg.norm(error))
+            self.l2_error.append(np.sqrt(np.square(error).sum()))
             self.MSE_error.append((error.T @ error) / error.shape[0])
             self.l2_deformation.append(np.linalg.norm(gt))
             self.MSE_deformation.append((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0])

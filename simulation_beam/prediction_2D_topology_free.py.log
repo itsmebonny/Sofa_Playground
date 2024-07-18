@@ -20,3 +20,21 @@
 /LowResSolution2D/DOFs.showColor = 1 1 1 1
 /LowResSolution2D/DOFs.showObject = 1
 /LowResSolution2D/DOFs.showColor = 1 0 0 1
+
+--- NEW SESSION: 18/07/2024 16:20:59 ---
+/HighResSolution2D/DOFs.showColor = 1 1 1 1
+/LowResSolution2D/DOFs.showIndices = 1
+/LowResSolution2D/DOFs.showColor = 1 1 1 1
+/LowResSolution2D/DOFs.showColor = 1 1 1 1
+/LowResSolution2D/DOFs.showIndices = 0
+/HighResSolution2D/DOFs.showIndices = 1
+/HighResSolution2D/DOFs.showColor = 1 1 1 1
+/HighResSolution2D/DOFs.showColor = 1 1 1 1
+/HighResSolution2D/DOFs.showIndicesScale = 0.01
+
+--- NEW SESSION: 18/07/2024 16:35:18 ---
+/HighResSolution2D/SamplingMapping/DOFs_HR.showIndices = 1
+/HighResSolution2D/SamplingMapping/DOFs_HR.showIndicesScale = 0.005
+/HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+/HighResSolution2D/SamplingMapping/DOFs_HR.showIndicesScale = 0.001
+/HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1

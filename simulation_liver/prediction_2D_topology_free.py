@@ -31,6 +31,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
+        self.RMSE_error, self.RMSE_deformation = [], []
+        self.RRMSE_error, self.RRMSE_deformation = [], []
         self.network = Trainer('npy_liver/2024-07-02_10:07:55_estimation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
@@ -237,7 +239,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # print("Exact displacement first 5 nodes: ", self.MO1.position.value[:5] - self.MO1.rest_position.value[:5])
 
 
-        self.MO_MapLR.position.value = self.MO_MapLR.position.value + U
+        self.MO_MapLR.position.value = self.MO_MapLR.position.value.copy() + U
 
         
 
@@ -292,6 +294,13 @@ class AnimationStepController(Sofa.Core.Controller):
             self.MSE_error.append((error.T @ error) / error.shape[0])
             self.l2_deformation.append(np.linalg.norm(gt))
             self.MSE_deformation.append((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0])
+            self.RMSE_error.append(np.sqrt((error.T @ error) / error.shape[0]))
+            self.RMSE_deformation.append(np.sqrt((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0] ))
+
+            #ADD Relative RMSE
+            self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
+
+
 
     def close(self):
 
@@ -304,11 +313,23 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
             print("\nMSE Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} mm²")
-            print(f"\t- Extrema : {np.round(np.min(self.MSE_error), 6)} -> {np.round(np.max(self.MSE_error), 6)} mm²")
+            print(f"\t- Distribution : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
+            print(f"\t- Extrema : {np.round(np.min(self.MSE_error), 6)} -> {np.round(np.max(self.MSE_error), 6)} m²")
             relative_error = np.array(self.MSE_error) / np.array(self.MSE_deformation)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
+
+            print("\nRMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)} ± {np.round(np.std(self.RMSE_error), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)} -> {np.round(np.max(self.RMSE_error), 6)} m")
+            relative_error = np.array(self.RMSE_error) / np.array(self.RMSE_deformation)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
+
+            print("\nRRMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RRMSE_error), 6)} ± {np.round(np.std(self.RRMSE_error), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.RRMSE_error), 6)} -> {np.round(np.max(self.RRMSE_error), 6)} m")
+            
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise

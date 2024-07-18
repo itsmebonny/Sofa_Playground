@@ -22,7 +22,7 @@ class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
         self.externalForce = [0, -20, 0]
-        self.object_mass = 0.001
+        self.object_mass = 0.0001
         self.createGraph(node)
         self.root = node
         self.save = False
