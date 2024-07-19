@@ -52,7 +52,10 @@ class AnimationStepController(Sofa.Core.Controller):
         sphereRadius=0.025
 
         filename_high = 'mesh/beam_5080.msh'
-        filename_low = 'mesh/beam_653.msh'
+        filename_low = 'mesh/beam_410.msh'
+        stl_filename = 'mesh/beam.stl'
+
+        self.loader = rootNode.addObject('MeshSTLLoader', name='loader', filename=stl_filename)
 
         self.coarse = rootNode.addChild('SamplingNodes')
         self.coarse.addObject('RegularGridTopology', name='coarseGridHigh', min=p_grid.min, max=p_grid.max, nx=p_grid.res[0], ny=p_grid.res[1], nz=p_grid.res[2])
@@ -82,8 +85,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
         self.exactSolution.addChild("visual")
-        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 0.5')
-        self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
+        self.exactSolution.visual.addObject('OglModel', src='@../../loader', color='0 1 1 0.5')
+        self.exactSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
         # same object with different resolution
 
@@ -115,8 +118,8 @@ class AnimationStepController(Sofa.Core.Controller):
         # self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsLow', output_topology='@triangleTopoLow')
 
         self.LowResSolution.addChild("visual")
-        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0 0.2')
-        self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../../loader', color='1 0 0 0.5')
+        self.LowResSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
     def onSimulationInitDoneEvent(self, event):
         """
@@ -126,7 +129,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.outputs = []
         self.steps = 0
         self.diverged_steps = 0
-        self.save = True
+        self.save = False
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -167,7 +170,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.z = np.random.uniform(-1, 1)
             self.phi = np.random.uniform(0, 2*np.pi)
             self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-            self.magnitude = np.random.uniform(0, 40)
+            self.magnitude = np.random.uniform(0, 100)
             self.externalForce = self.magnitude * self.versor
         else:
             self.sample = self.count_m *self.num_versors + self.count_v
@@ -185,41 +188,40 @@ class AnimationStepController(Sofa.Core.Controller):
 
         side = np.random.randint(1, 6)
         if side == 1:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
-            y_min = np.random.uniform(-1, 0.5)
-            y_max = y_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
+            y_min = np.random.uniform(-1, 0.0)
+            y_max = y_min + 1
             z_min = -1.01
             z_max = -0.99
         elif side == 2:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
-            y_min = np.random.uniform(-1, 0.5)
-            y_max = y_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
+            y_min = np.random.uniform(-1, 0.0)
+            y_max = y_min + 1
             z_min = 0.99
             z_max = 1.01
         elif side == 3:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
             y_min = -1.01
             y_max = -0.99
-            z_min = np.random.uniform(-1, 0.5)
-            z_max = z_min + 0.5
+            z_min = np.random.uniform(-1, 0.0)
+            z_max = z_min + 1
         elif side == 4:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
             y_min = 0.99
             y_max = 1.01
-            z_min = np.random.uniform(-1, 0.5)
-            z_max = z_min + 0.5
+            z_min = np.random.uniform(-1, 0.0)
+            z_max = z_min + 1
         elif side == 5:
             x_min = 9.99
             x_max = 10.01
-            y_min = np.random.uniform(-1, 0.5)
-            y_max = y_min + 0.5
-            z_min = np.random.uniform(-1, 0.5)
-            z_max = z_min + 0.5
-        elif side == 6:
+            y_min = np.random.uniform(-1, 0.0)
+            y_max = y_min + 1
+            z_min = np.random.uniform(-1, 0.0)
+            z_max = z_min + 1
             pass
 
         bbox = [x_min, y_min, z_min, x_max, y_max, z_max]

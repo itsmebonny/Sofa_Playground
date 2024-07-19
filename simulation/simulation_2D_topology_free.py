@@ -76,7 +76,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # same object with different resolution
 
         self.LowResSolution = rootNode.addChild('LowResSolution2D', activated=True)
-        self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_183.msh')
+        self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_75.msh')
         self.surface_topo_LR = self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
@@ -108,7 +108,7 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -150,7 +150,7 @@ class AnimationStepController(Sofa.Core.Controller):
         if not self.efficient_sampling:
             self.theta = np.random.uniform(0, 2*np.pi)
             self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
-            self.magnitude = np.random.uniform(0, 40)
+            self.magnitude = np.random.uniform(0, 70)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
         else:
             self.sample = self.count_m *self.num_versors + self.count_v
@@ -171,16 +171,16 @@ class AnimationStepController(Sofa.Core.Controller):
         if side == 2:
             x_min = 9.99
             x_max = 10.01
-            y_min = np.random.uniform(-1.01, 0.4)
-            y_max = y_min + 0.6
+            y_min = np.random.uniform(-1.01, 0.0)
+            y_max = y_min + 1
         elif side == 3:
             y_min = -1.01
             y_max = -0.99
-            x_min = np.random.uniform(2.0, 9.4)
-            x_max = x_min + 0.6
+            x_min = np.random.uniform(2.0, 9.0)
+            x_max = x_min + 1
         else:
-            x_min = np.random.uniform(2.0, 9.4)
-            x_max = x_min + 0.6
+            x_min = np.random.uniform(2.0, 9.0)
+            x_max = x_min + 1
             y_min = 0.99
             y_max = 1.01
         

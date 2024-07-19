@@ -38,6 +38,43 @@ def create_rectangle(x_min, y_min, x_max, y_max, lc):
     gmsh.fltk.run()
 
 
+import numpy as np
+from stl import mesh
+
+def create_beam_stl(x_min, y_min, x_max, y_max, z_min, z_max, filename):
+    # Define the 8 vertices of the beam
+    vertices = np.array([
+        [x_min, y_min, z_min],
+        [x_max, y_min, z_min],
+        [x_max, y_max, z_min],
+        [x_min, y_max, z_min],
+        [x_min, y_min, z_max],
+        [x_max, y_min, z_max],
+        [x_max, y_max, z_max],
+        [x_min, y_max, z_max]
+    ])
+    
+    # Define the 12 triangles composing the beam
+    faces = np.array([
+        [0, 3, 1], [1, 3, 2],  # Bottom
+        [0, 1, 4], [1, 5, 4],  # Front
+        [1, 2, 5], [2, 6, 5],  # Right
+        [2, 3, 6], [3, 7, 6],  # Back
+        [3, 0, 7], [0, 4, 7],  # Left
+        [4, 5, 6], [4, 6, 7]   # Top
+    ])
+    
+    # Create the mesh
+    beam_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, face in enumerate(faces):
+        for j in range(3):
+            beam_mesh.vectors[i][j] = vertices[face[j], :]
+    
+    # Write the mesh to file
+    beam_mesh.save(filename)
+
+
+
 def create_beam(x_min, y_min, x_max, y_max, z_min, z_max, lc):
     # Create the points
     p1 = gmsh.model.geo.addPoint(x_min, y_min, z_min, lc)
@@ -97,6 +134,8 @@ def create_beam(x_min, y_min, x_max, y_max, z_min, z_max, lc):
 
     # Save the mesh
     gmsh.write(f"mesh/beam_{nb_nodes}.msh")
+
+
 
     # Launch the GUI to see the results
     gmsh.fltk.run()
@@ -313,6 +352,7 @@ def mesh_stl_with_char_length(stl_file, max_char_length):
 
     # Save the mesh to a file
     gmsh.write(f"mesh/liver_{nb_nodes}.msh")
+    
 
     gmsh.fltk.run()
 
@@ -326,7 +366,7 @@ import pygalmesh
 if __name__ == '__main__':
 
 
-    mesh_type = "beam"
+    mesh_type = "good"
     input_stl_file = "mesh/liver_lowres.stl"
 
 
@@ -348,11 +388,13 @@ if __name__ == '__main__':
             gmsh.model.add("beam")
             create_beam(0, -1, 10, 1, -1, 1, i)
             gmsh.finalize()
-    else:
+    elif mesh_type == "stl":
         for i in np.arange(0.4, 0.6, 0.02):
             mesh_stl_with_char_length(input_stl_file, i)
             gmsh.finalize()
             print("STL mode")
+    else:
+        create_beam_stl(0, -1, 10, 1, -1, 1, 'mesh/beam.stl')
 
         sys.exit(1)
 

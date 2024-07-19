@@ -66,6 +66,10 @@ class AnimationStepController(Sofa.Core.Controller):
         filename_high = 'mesh/liver_2341.msh'
         filename_low = 'mesh/liver_588.msh'
 
+        obj_filename = 'mesh/liver_lowres.obj'
+
+        self.obj_loader = rootNode.addObject('MeshOBJLoader', name='loader', filename=obj_filename)
+
         self.coarse = rootNode.addChild('SamplingNodes')
         self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_high, scale3d="1 1 1", translation="0 0 0")
         self.coarse.addObject('SparseGridTopology', n="50 50 50", position='@grid.position', name='coarseGridHigh')  # 
@@ -96,8 +100,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
         self.exactSolution.addChild("visual")
-        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 1')
-        self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
+        self.exactSolution.visual.addObject('OglModel', src='@../../loader', color='0 1 0 1')
+        self.exactSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
+
 
         # same object with different resolution
 
@@ -129,8 +134,9 @@ class AnimationStepController(Sofa.Core.Controller):
         # self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsLow', output_topology='@triangleTopoLow')
 
         self.LowResSolution.addChild("visual")
-        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0 1')
-        self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
+
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../../loader', color='1 0 0 1')
+        self.LowResSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
 
         print("High resolution shape: ", self.MO_sampling.position.value.shape)

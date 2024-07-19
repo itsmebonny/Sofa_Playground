@@ -38,3 +38,11 @@
 /HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
 /HighResSolution2D/SamplingMapping/DOFs_HR.showIndicesScale = 0.001
 /HighResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 19/07/2024 11:37:14 ---
+/LowResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+/LowResSolution2D/SamplingMapping/DOFs_HR.showObject = 1
+
+--- NEW SESSION: 19/07/2024 16:17:43 ---
+/LowResSolution2D/SamplingMapping/DOFs_HR.showObject = 1
+/LowResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1

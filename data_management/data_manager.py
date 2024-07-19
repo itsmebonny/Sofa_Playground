@@ -128,9 +128,9 @@ class DataManager:
 
 if __name__ == "__main__":
     # Example of usage
-    dm = DataManager('npy_beam/2024-07-04_10:40:16_estimation')
+    dm = DataManager('npy_gmsh/2024-07-19_13:59:21_estimation')
     dm.join_data(efficient=dm.efficient)
-    dm2 = DataManager('npy_beam/2024-07-04_10:40:16_estimation')
+    dm2 = DataManager('npy_gmsh/2024-07-19_13:59:21_estimation')
     # reshape the data by flattenig the last two dimensions
     coarse_data = dm2.train_coarse_data.reshape(dm2.train_coarse_data.shape[0], -1)
     high_data = dm2.train_high_data.reshape(dm2.train_high_data.shape[0], -1)

@@ -23,7 +23,8 @@ SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
-        self.externalForce = [0, -10, 0]
+        self.externalForce = [0, -30, 0]
+        self.object_mass = 0.1
         self.createGraph(node)
         self.root = node
         self.save = False
@@ -66,9 +67,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_1166.msh')
         self.surface_topo = self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
+        self.exactSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@triangleTopo")
+        self.exactSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
+        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -92,9 +93,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_75.msh')
         self.surface_topo_LR = self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.LowResSolution.addObject('CGLinearSolver', iterations=500, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
+        self.LowResSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
+        self.LowResSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
+        self.LowResSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -116,7 +117,6 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../grid', color='0 1 0 0.5')
         self.LowResSolution.visual_noncorrected.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
-
         self.nb_nodes = len(self.MO1.position.value)
         self.nb_nodes_LR = len(self.MO1_LR.position.value)
 
@@ -136,6 +136,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.outputs = []
         self.save = False
         self.start_time = 0
+        self.timestep = 0
         if self.save:
             if not os.path.exists('npy'):
                 os.mkdir('npy')
@@ -153,66 +154,84 @@ class AnimationStepController(Sofa.Core.Controller):
 
 
     def onAnimateBeginEvent(self, event):
-        self.bad_sample = False
+
         # reset positions
-        self.MO1.position.value = self.MO1.rest_position.value
-        self.MO2.position.value = self.MO2.rest_position.value
+        # 
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
+
+        if self.timestep % 100 == 0:
+            self.MO1.position.value = self.MO1.rest_position.value
+            self.MO2.position.value = self.MO2.rest_position.value
+
+            self.theta = np.random.uniform(0, 2*np.pi)
+            self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
+            self.magnitude = np.random.uniform(30, 70)
+            self.externalForce = np.append(self.magnitude * self.versor, 0)
+
+            #self.externalForce = [0, -60, 0]
+            # self.externalForce_LR = [0, -60, 0]
+
+            # Define random box
+            side = np.random.randint(1, 4)
+            if side == 2:
+                x_min = 9.99
+                x_max = 10.01
+                y_min = np.random.uniform(-1.01, 0.0)
+                y_max = y_min + 1
+            elif side == 3:
+                y_min = -1.01
+                y_max = -0.99
+                x_min = np.random.uniform(2.0, 9.0)
+                x_max = x_min + 1
+            else:
+                x_min = np.random.uniform(2.0, 9.0)
+                x_max = x_min + 1
+                y_min = 0.99
+                y_max = 1.01
+                
+            # Set the new bounding box
+            self.exactSolution.removeObject(self.cff_box)
+            self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1,
+                                                box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+            self.cff_box.init()
+
+            self.LowResSolution.removeObject(self.cff_box_LR)
+            self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1,
+                                                box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+            self.cff_box_LR.init()
+
+            # Get the intersection with the surface
+            indices = list(self.cff_box.indices.value)
+            indices = list(set(indices).intersection(set(self.idx_surface)))
+            indices_LR = list(self.cff_box_LR.indices.value)
+            indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
+            self.exactSolution.removeObject(self.cff)
+            self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+            self.cff.init()
+
+
+            self.LowResSolution.removeObject(self.cffLR)
+            self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+            self.cffLR.init()
         
-        self.theta = np.random.uniform(0, 2*np.pi)
-        self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
-        self.magnitude = np.random.uniform(0, 70)
-        self.externalForce = np.append(self.magnitude * self.versor, 0)
-
-        #self.externalForce = [0, -60, 0]
-        # self.externalForce_LR = [0, -60, 0]
-
-        # Define random box
-        side = np.random.randint(1, 4)
-        if side == 2:
-            x_min = 9.99
-            x_max = 10.01
-            y_min = np.random.uniform(-1.01, 0.0)
-            y_max = y_min + 1
-        elif side == 3:
-            y_min = -1.01
-            y_max = -0.99
-            x_min = np.random.uniform(2.0, 9.0)
-            x_max = x_min + 1
-        else:
-            x_min = np.random.uniform(2.0, 9.0)
-            x_max = x_min + 1
-            y_min = 0.99
-            y_max = 1.01
-            
-        # Set the new bounding box
-        self.exactSolution.removeObject(self.cff_box)
-        self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1,
-                                            box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
-        self.cff_box.init()
-
-        self.LowResSolution.removeObject(self.cff_box_LR)
-        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1,
-                                            box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
-        self.cff_box_LR.init()
-
-        # Get the intersection with the surface
-        indices = list(self.cff_box.indices.value)
-        indices = list(set(indices).intersection(set(self.idx_surface)))
-        indices_LR = list(self.cff_box_LR.indices.value)
-        indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
-        self.exactSolution.removeObject(self.cff)
-        self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-        self.cff.init()
+        if (self.timestep - 50) % 100 == 0:
+            indices = list(self.cff_box.indices.value)
+            indices = list(set(indices).intersection(set(self.idx_surface)))
+            indices_LR = list(self.cff_box_LR.indices.value)
+            indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
+            self.exactSolution.removeObject(self.cff)
+            self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=[0, 0, 0], showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+            self.cff.init()
 
 
-        self.LowResSolution.removeObject(self.cffLR)
-        self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-        self.cffLR.init()
+            self.LowResSolution.removeObject(self.cffLR)
+            self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=[0, 0, 0], showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+            self.cffLR.init()
 
-        if indices_LR == [] or indices == []:
-            print("Empty intersection")
-            self.bad_sample = True
+        self.MO_training.reset_velocity = np.zeros_like(self.MO_training.velocity.value)
+        self.MO2.reset_velocity = np.zeros_like(self.MO2.velocity.value)
+
+
         self.start_time = process_time()
 
 
@@ -259,8 +278,10 @@ class AnimationStepController(Sofa.Core.Controller):
         # print("Predicted displacement first 5 nodes: ", U[:5])
         # print("Exact displacement first 5 nodes: ", self.MO1.position.value[:5] - self.MO1.rest_position.value[:5])
 
-
+        # PREDICTION
         self.MO_training.position.value = self.MO_training.position.value + U
+        
+        
 
         # U_high = self.compute_displacement(self.MO1)
         # U_low = self.compute_displacement(self.MO2)
@@ -300,6 +321,8 @@ class AnimationStepController(Sofa.Core.Controller):
         corrected_displacement = np.append(corrected_displacement, np.zeros((interpolate_positions.shape[0], 1)), axis=1)
         self.MO2.position.value = interpolate_positions + corrected_displacement
 
+
+        #PREDICTION 
         self.visual_model.position.value = interpolate_positions + corrected_displacement
 
 
@@ -307,13 +330,14 @@ class AnimationStepController(Sofa.Core.Controller):
         self.end_time = process_time()
         # error = np.linalg.norm(self.MO_NN.position.value - self.MO1.position.value)
         # print(f"Prediction error: {error}")
-        if not self.bad_sample:
-            self.compute_metrics()
+        self.compute_metrics()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
         print("L2 error: ", self.l2_error[-1])
         print("L2 deformation: ", self.l2_deformation[-1])
         print("Relative error: ", self.l2_error[-1]/np.linalg.norm(self.MO_training.position.value - self.MO_training.rest_position.value))
+
+        self.timestep += 1
 
     def compute_metrics(self):
         """
@@ -335,6 +359,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         #ADD Relative RMSE
         self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
+
 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
