@@ -171,10 +171,10 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-07-04_10:40:16_estimation/train'
+    data_dir = 'npy_beam/2024-07-22_09:53:22_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
-    trainer = Trainer(data_dir, 128, 0.001, 500)
+    trainer = Trainer(data_dir, 256, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     trainer.save_model(f'model_{training_time}_beam')

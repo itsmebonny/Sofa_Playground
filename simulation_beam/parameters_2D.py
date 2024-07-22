@@ -7,9 +7,9 @@ Define the following set of parameters :
 from numpy import array
 from collections import namedtuple
 
-nx = 50
-ny = 20
-nz = 20 # 2D simulation
+nx = 25
+ny = 10
+nz = 10 # 2D simulation
 
 
 # Grid parameters

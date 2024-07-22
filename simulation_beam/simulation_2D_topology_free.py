@@ -129,7 +129,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.outputs = []
         self.steps = 0
         self.diverged_steps = 0
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0

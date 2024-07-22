@@ -8,8 +8,15 @@ import datetime
 from sklearn.preprocessing import MinMaxScaler
 from parameters_2D import p_grid, p_grid_LR
 # add network path to the python path
+
 import sys
+
+from simulation import prediction_2D_multimesh
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
+
+print(sys.path)
+
+
 
 from network.fully_connected_2D import Trainer as Trainer2D
 from network.FC_Error_estimation import Trainer as Trainer
@@ -27,6 +34,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.createGraph(node)
         self.root = node
         self.save = False
+        self.save_for_images = True
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
@@ -136,11 +144,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.outputs = []
         self.save = False
         self.start_time = 0
+        self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
         if self.save:
             if not os.path.exists('npy'):
                 os.mkdir('npy')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
-            self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
             os.makedirs(f'npy/{self.directory}')
             print(f"Saving data to npy/{self.directory}")
 
@@ -262,26 +270,6 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.MO_training.position.value = self.MO_training.position.value + U
 
-        # U_high = self.compute_displacement(self.MO1)
-        # U_low = self.compute_displacement(self.MO2)
-        # U_training = self.compute_displacement(self.MO_training)
-
-        # rest_position_high = self.compute_rest_position(self.MO1)
-        # rest_position_low = self.compute_rest_position(self.MO2)
-        # rest_postion_training = self.compute_rest_position(self.MO_training)
-
-        # if not os.path.exists('interpolation_tests'):
-        #     os.mkdir('interpolation_tests')
-        # np.save(f'interpolation_tests/U_high.npy', U_high)
-        # np.save(f'interpolation_tests/U_low.npy', U_low)
-        # np.save(f'interpolation_tests/U_training.npy', U_training)
-        # np.save(f'interpolation_tests/rest_position_high.npy', rest_position_high)
-        # np.save(f'interpolation_tests/rest_position_low.npy', rest_position_low)
-        # np.save(f'interpolation_tests/rest_position_training.npy', rest_postion_training)
-
-            # err = np.linalg.norm(self.MO1_LR.position.value - self.MO_training.position.value)
-            # print(f"Prediction error: {err}")
-            # self.errs.append(err)
                 
         positions = self.MO_training.rest_position.value.copy()[:, :2]
         #print("Positions: ", positions)
@@ -301,6 +289,37 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2.position.value = interpolate_positions + corrected_displacement
 
         self.visual_model.position.value = interpolate_positions + corrected_displacement
+
+        if self.save_for_images:
+            if not os.path.exists('images_data'):
+                os.mkdir('images_data')
+
+            if not os.path.exists(f'images_data/{self.directory}'):
+                os.mkdir(f'images_data/{self.directory}')
+
+            ground_truth_displacement = self.MO1.position.value - self.MO1.rest_position.value
+            prediction_displacement = self.MO2.position.value - self.MO2.rest_position.value
+
+            ground_truth_grid = self.MO1_LR.position.value - self.MO1_LR.rest_position.value
+            prediction_grid = self.MO_training.position.value - self.MO_training.rest_position.value
+
+            ground_truth_rest = self.MO1.rest_position.value
+            prediction_rest = self.MO2.rest_position.value
+
+            ground_truth_grid_rest = self.MO1_LR.rest_position.value
+            prediction_grid_rest = self.MO_training.rest_position.value
+
+            np.save(f'images_data/{self.directory}/ground_truth_displacement.npy', ground_truth_displacement)
+            np.save(f'images_data/{self.directory}/prediction_displacement.npy', prediction_displacement)
+            np.save(f'images_data/{self.directory}/ground_truth_grid.npy', ground_truth_grid)
+            np.save(f'images_data/{self.directory}/prediction_grid.npy', prediction_grid)
+            np.save(f'images_data/{self.directory}/ground_truth_rest.npy', ground_truth_rest)
+            np.save(f'images_data/{self.directory}/prediction_rest.npy', prediction_rest)
+            np.save(f'images_data/{self.directory}/ground_truth_grid_rest.npy', ground_truth_grid_rest)
+            np.save(f'images_data/{self.directory}/prediction_grid_rest.npy', prediction_grid_rest)
+            
+
+        
 
 
 
