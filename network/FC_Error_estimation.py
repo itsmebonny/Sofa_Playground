@@ -141,7 +141,7 @@ class Trainer:
     
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=30, min_delta=0.000001)
+        early_stopper = EarlyStopper(patience=40, min_delta=0.000001)
         for epoch in range(self.epochs):
             running_loss = 0.0
             for i, data in enumerate(tqdm(self.train_loader)):

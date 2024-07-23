@@ -222,7 +222,7 @@ class AnimationStepController(Sofa.Core.Controller):
             y_max = y_min + 1
             z_min = np.random.uniform(-1, 0.0)
             z_max = z_min + 1
-            pass
+            
 
         bbox = [x_min, y_min, z_min, x_max, y_max, z_max]
 
