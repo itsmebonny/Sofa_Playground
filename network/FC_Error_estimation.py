@@ -94,6 +94,26 @@ class Data(Dataset):
         noise = np.random.normal(0, 0.1, self.data[idx].shape)
         #return self.data[idx] + noise, self.labels[idx]
         return self.data[idx], self.labels[idx]
+    
+class EarlyStopper:
+    def __init__(self, patience=1, min_delta=0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_validation_loss = float('inf')
+
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif validation_loss > (self.min_validation_loss + self.min_delta):
+            self.counter += 1
+            print(f"Counter: {self.counter}")
+            print(f"Diff: {validation_loss - self.min_validation_loss}")
+            if self.counter >= self.patience:
+                return True
+        return False
+
 
 class Trainer:
     # Trainer class that trains the model
@@ -111,7 +131,7 @@ class Trainer:
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         #self.criterion = RelativeMSELoss()
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=20)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=10, min_lr=1e-8)
         
     
     def load_data(self):
@@ -121,6 +141,7 @@ class Trainer:
     
     def train(self):
         self.model.train()
+        early_stopper = EarlyStopper(patience=30, min_delta=0.000001)
         for epoch in range(self.epochs):
             running_loss = 0.0
             for i, data in enumerate(tqdm(self.train_loader)):
@@ -133,10 +154,14 @@ class Trainer:
                 self.optimizer.step()
                 running_loss += loss.item()
             print(f"Epoch {epoch+1}, Loss: {running_loss/len(self.train_loader)}")
+            print(f"Learning rate: {self.optimizer.param_groups[0]['lr']}")
             val_loss = self.validate()
             if val_loss is not None:
+                if early_stopper.early_stop(val_loss):
+                    print("Early stopping")
+                    break
                 self.scheduler.step(val_loss)
-    
+        
     def validate(self):
         self.model.eval()
         running_loss = 0.0
@@ -148,6 +173,7 @@ class Trainer:
                 loss = self.criterion(outputs, labels.float())
                 running_loss += loss.item()
         print(f"Validation Loss: {running_loss/len(self.val_loader)}")
+        return running_loss/len(self.val_loader)
     
     def save_model(self, model_dir):
         if not os.path.exists('models'):
@@ -171,13 +197,13 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-07-22_09:53:22_estimation/train'
+    data_dir = 'npy_gmsh/2024-07-19_13:59:21_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
-    trainer = Trainer(data_dir, 256, 0.001, 500)
+    trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_beam')
+    trainer.save_model(f'model_{training_time}')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

@@ -34,7 +34,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.createGraph(node)
         self.root = node
         self.save = False
-        self.save_for_images = True
+        self.save_for_images = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
@@ -42,7 +42,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.network = Trainer('npy_gmsh/2024-07-19_13:59:21_estimation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-07-19_15:08:21.pth') # efficient noisy
+        self.network.load_model('models/model_2024-07-23_16:05:44.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 

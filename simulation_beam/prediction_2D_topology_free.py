@@ -31,10 +31,12 @@ class AnimationStepController(Sofa.Core.Controller):
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
-        self.network = Trainer('npy_beam/2024-07-04_10:40:16_estimation/train', 32, 0.001, 500)
+        self.RMSE_error, self.RMSE_deformation = [], []
+        self.RRMSE_error, self.RRMSE_deformation = [], []
+        self.network = Trainer('npy_beam/2024-07-23_09:23:48_estimation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-07-19_15:54:41_beam.pth') # efficient noisy
+        self.network.load_model('models/model_2024-07-23_15:58:02_beam.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -95,8 +97,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
         self.exactSolution.addChild("visual")
-        self.exactSolution.visual.addObject('OglModel', src='@../../loader', color='0 1 1 0.5')
-        self.exactSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
+        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1')
+        self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
         # same object with different resolution
 
@@ -128,12 +130,12 @@ class AnimationStepController(Sofa.Core.Controller):
         # self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsLow', output_topology='@triangleTopoLow')
 
         self.LowResSolution.addChild("visual")
-        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../../loader', color='1 0 0 0.8')
-        self.LowResSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0')
+        self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
-        self.LowResSolution.addChild("visual_noncorrected")
-        self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../../loader', color='0 1 0 0.5')
-        self.LowResSolution.visual_noncorrected.addObject('BarycentricMapping', input='@../DOFs', output='@./')
+        # self.LowResSolution.addChild("visual_noncorrected")
+        # self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../../loader', color='0 1 0 0.5')
+        # self.LowResSolution.visual_noncorrected.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
 
         print("High resolution shape: ", self.MO_sampling.position.value.shape)
@@ -183,47 +185,46 @@ class AnimationStepController(Sofa.Core.Controller):
         self.z = np.random.uniform(-1, 1)
         self.phi = np.random.uniform(0, 2*np.pi)
         self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-        self.magnitude = np.random.uniform(0, 40)
+        self.magnitude = np.random.uniform(0, 100)
         self.externalForce = self.magnitude * self.versor
 
         side = np.random.randint(1, 6)
         if side == 1:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
-            y_min = np.random.uniform(-1, 0.5)
-            y_max = y_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
+            y_min = np.random.uniform(-1, 0.0)
+            y_max = y_min + 1
             z_min = -1.01
             z_max = -0.99
         elif side == 2:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
-            y_min = np.random.uniform(-1, 0.5)
-            y_max = y_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
+            y_min = np.random.uniform(-1, 0.0)
+            y_max = y_min + 1
             z_min = 0.99
             z_max = 1.01
         elif side == 3:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
             y_min = -1.01
             y_max = -0.99
-            z_min = np.random.uniform(-1, 0.5)
-            z_max = z_min + 0.5
+            z_min = np.random.uniform(-1, 0.0)
+            z_max = z_min + 1
         elif side == 4:
-            x_min = np.random.uniform(2, 9.5)
-            x_max = x_min + 0.5
+            x_min = np.random.uniform(2, 9.0)
+            x_max = x_min + 1
             y_min = 0.99
             y_max = 1.01
-            z_min = np.random.uniform(-1, 0.5)
-            z_max = z_min + 0.5
+            z_min = np.random.uniform(-1, 0.0)
+            z_max = z_min + 1
         elif side == 5:
             x_min = 9.99
             x_max = 10.01
-            y_min = np.random.uniform(-1, 0.5)
-            y_max = y_min + 0.5
-            z_min = np.random.uniform(-1, 0.5)
-            z_max = z_min + 0.5
-        elif side == 6:
-            pass
+            y_min = np.random.uniform(-1, 0.0)
+            y_max = y_min + 1
+            z_min = np.random.uniform(-1, 0.0)
+            z_max = z_min + 1
+            
 
         bbox = [x_min, y_min, z_min, x_max, y_max, z_max]
 
@@ -329,7 +330,7 @@ class AnimationStepController(Sofa.Core.Controller):
         #print("Before correction: ", self.MO2.position.value)
         
         self.MO2.position.value = interpolate_positions + corrected_displacement
-        self.visual_model = interpolate_positions + corrected_displacement
+        self.visual_model.position.value = interpolate_positions + corrected_displacement
         # #print("After correction: ", self.MO2.position.value)
 
         # ============== UPDATE THE NN MODEL ==============
@@ -342,8 +343,7 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
         
-        print("Error between node 491 and node 2457: ", np.linalg.norm(self.MO2.position.value[491] - self.MO1.position.value[2457]))
-        print("Error between node 11547: ", np.linalg.norm(self.MO_MapHR.position.value[11547] - self.MO_MapLR.position.value[11547]))
+        
         error = (pred - gt).reshape(-1)
         print("L2 error divided by number of points: ", np.linalg.norm(error)**2 / error.shape[0])
         print("MSE error: ", (error.T @ error) / error.shape[0])
@@ -364,10 +364,15 @@ class AnimationStepController(Sofa.Core.Controller):
         # Compute metrics only for non-small displacements
         if np.linalg.norm(gt) > 1e-6:
             error = (gt - pred).reshape(-1)
-            self.l2_error.append(np.sqrt(np.square(error).sum()))
+            self.l2_error.append(np.linalg.norm(error))
             self.MSE_error.append((error.T @ error) / error.shape[0])
             self.l2_deformation.append(np.linalg.norm(gt))
             self.MSE_deformation.append((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0])
+            self.RMSE_error.append(np.sqrt((error.T @ error) / error.shape[0]))
+            self.RMSE_deformation.append(np.sqrt((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0] ))
+
+            #ADD Relative RMSE
+            self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
 
     def close(self):
 
@@ -380,11 +385,22 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
             print("\nMSE Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} mm²")
-            print(f"\t- Extrema : {np.round(np.min(self.MSE_error), 6)} -> {np.round(np.max(self.MSE_error), 6)} mm²")
+            print(f"\t- Distribution : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
+            print(f"\t- Extrema : {np.round(np.min(self.MSE_error), 6)} -> {np.round(np.max(self.MSE_error), 6)} m²")
             relative_error = np.array(self.MSE_error) / np.array(self.MSE_deformation)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
+
+            print("\nRMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)} ± {np.round(np.std(self.RMSE_error), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)} -> {np.round(np.max(self.RMSE_error), 6)} m")
+            relative_error = np.array(self.RMSE_error) / np.array(self.RMSE_deformation)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
+
+            print("\nRRMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RRMSE_error), 6)} ± {np.round(np.std(self.RRMSE_error), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.RRMSE_error), 6)} -> {np.round(np.max(self.RRMSE_error), 6)} m")
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise

@@ -46,3 +46,14 @@
 --- NEW SESSION: 19/07/2024 16:17:43 ---
 /LowResSolution2D/SamplingMapping/DOFs_HR.showObject = 1
 /LowResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 23/07/2024 14:40:48 ---
+/LowResSolution2D/SamplingMapping/DOFs_HR.showObject = 1
+/LowResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 23/07/2024 14:43:57 ---
+/LowResSolution2D/SamplingMapping/DOFs_HR.showObject = 1
+/LowResSolution2D/SamplingMapping/DOFs_HR.showColor = 1 1 1 1
+
+--- NEW SESSION: 23/07/2024 14:51:46 ---
+/LowResSolution2D/visual/OglModel.material = Default Diffuse 1 1 0 0 0.8 Ambient 1 0.2 0 0 0.8 Specular 0 1 0 0 0.8 Emissive 0 1 0 0 0.8 Shininess 0 45 
