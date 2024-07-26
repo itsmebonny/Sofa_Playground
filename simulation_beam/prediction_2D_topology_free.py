@@ -187,7 +187,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.z = np.random.uniform(-1, 1)
         self.phi = np.random.uniform(0, 2*np.pi)
         self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-        self.magnitude = np.random.uniform(0, 100)
+        self.magnitude = np.random.uniform(80, 100)
         self.externalForce = self.magnitude * self.versor
 
         side = np.random.randint(1, 6)

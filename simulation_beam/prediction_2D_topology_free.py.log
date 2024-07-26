@@ -57,3 +57,7 @@
 
 --- NEW SESSION: 23/07/2024 14:51:46 ---
 /LowResSolution2D/visual/OglModel.material = Default Diffuse 1 1 0 0 0.8 Ambient 1 0.2 0 0 0.8 Specular 0 1 0 0 0.8 Emissive 0 1 0 0 0.8 Shininess 0 45 
+
+--- NEW SESSION: 26/07/2024 16:02:27 ---
+/HighResSolution2D/ROI2.drawBoxes = 0
+/LowResSolution2D/ROI2.drawBoxes = 0

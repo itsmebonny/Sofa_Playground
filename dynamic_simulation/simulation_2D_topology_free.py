@@ -25,7 +25,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.object_mass = 1
         self.createGraph(node)
         self.root = node
-        self.save = False
+        self.save = True
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         
@@ -55,17 +55,24 @@ class AnimationStepController(Sofa.Core.Controller):
 
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
-        self.exactSolution.addObject('RegularGridTopology', name='grid', min=p_grid.min, max=p_grid.max, nx=p_grid.res[0], ny=p_grid.res[1], nz=p_grid.res[2])
-        self.exactSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
+        self.exactSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_1166.msh')
+        self.surface_topo = self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        self.exactSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
+        self.exactSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@triangleTopo")
         self.exactSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
         self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.exactSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
+        self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+        self.coarse = self.exactSolution.addChild('CoarseMesh')
+        self.coarse.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
+        self.coarse.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
+        self.MO1_LR = self.coarse.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
+        self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
+        self.coarse.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
+
 
         self.exactSolution.addChild("visual")
         self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 0.5')
@@ -74,8 +81,8 @@ class AnimationStepController(Sofa.Core.Controller):
         # same object with different resolution
 
         self.LowResSolution = rootNode.addChild('LowResSolution2D', activated=True)
-        self.LowResSolution.addObject('RegularGridTopology',name='grid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
-        self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
+        self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_75.msh')
+        self.surface_topo_LR = self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         self.LowResSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
@@ -83,13 +90,27 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
+        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
+        self.trained_nodes = self.LowResSolution.addChild('CoarseMesh')
+        self.trained_nodes.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
+        self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
+        self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
+        self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
+        self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
+
         self.LowResSolution.addChild("visual")
-        self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
-        
+
+        self.LowResSolution.addChild("visual_noncorrected")
+        self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../grid', color='0 1 0 0.5')
+        self.LowResSolution.visual_noncorrected.addObject('IdentityMapping', input='@../DOFs', output='@./')
+
+        self.nb_nodes = len(self.MO1.position.value)
+        self.nb_nodes_LR = len(self.MO1_LR.position.value)
+
         self.high_res_shape = np.array((p_grid.nb_nodes, 3))
         self.low_res_shape = np.array((p_grid_LR.nb_nodes, 3))
 
@@ -104,15 +125,18 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.start_time = 0
         self.count = 0
+        self.inside_counter = 0
+        self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+        self.directory =  self.directory + "_dynamic_simulation" 
         if self.save:
             if not os.path.exists('npy'):
                 os.mkdir('npy')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
-            self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-            self.directory =  self.directory + "_dynamic_simulation" 
+            
+            
             os.makedirs(f'npy/{self.directory}')
             print(f"Saving data to npy/{self.directory}")
 
@@ -124,7 +148,8 @@ class AnimationStepController(Sofa.Core.Controller):
         # self.MO1.position.value = self.MO1.rest_position.value
         # self.MO2.position.value = self.MO2.rest_position.value
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
-        if self.count % 10000 == 0:
+        if self.count % 5000 == 0:
+            self.inside_counter = 0
             self.MO1.position.value = self.MO1.rest_position.value
             self.MO2.position.value = self.MO2.rest_position.value
             self.vector = np.random.uniform(-1, 1, 2)
@@ -132,6 +157,7 @@ class AnimationStepController(Sofa.Core.Controller):
             self.magnitude = np.random.uniform(10, 40)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
         self.count += 1
+        self.inside_counter += 1
         #self.externalForce = [0, -20, 0]
 
         self.exactSolution.removeObject(self.cff)
@@ -150,12 +176,12 @@ class AnimationStepController(Sofa.Core.Controller):
         self.end_time = process_time()
 
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
-        U_high = self.compute_displacement(self.MO1)
-        U_low = self.compute_displacement(self.MO2)
-        V_high = self.compute_velocity(self.MO1)
-        V_low = self.compute_velocity(self.MO2)
+        U_high = self.compute_displacement(self.MO1_LR)
+        U_low = self.compute_displacement(self.MO_training)
+        V_high = self.compute_velocity(self.MO1_LR)
+        V_low = self.compute_velocity(self.MO_training)
         #save data
-        if self.save and self.count % 100 == 0:
+        if self.save and ((self.count % 100 == 0 and self.inside_counter > 2500) or (self.count % 50 == 0 and self.inside_counter <= 2500)):
             np.save(f'npy/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(U_high))
             np.save(f'npy/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(U_low))
             np.save(f'npy/{self.directory}/HighResVel_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(V_high))
