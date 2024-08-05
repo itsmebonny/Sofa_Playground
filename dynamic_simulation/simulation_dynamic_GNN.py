@@ -22,9 +22,13 @@ class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
         self.externalForce = [0, 30, 0]
+        self.object_mass = 0.5
         self.createGraph(node)
         self.root = node
         self.save = False
+        self.l2_error, self.MSE_error = [], []
+        self.l2_deformation, self.MSE_deformation = [], []
+        self.RMSE_error, self.RMSE_deformation = [], []
         
     def createGraph(self, rootNode):
 
@@ -52,16 +56,16 @@ class AnimationStepController(Sofa.Core.Controller):
 
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
-        self.exactSolution.addObject('RegularGridTopology', name='grid', min=p_grid.min, max=p_grid.max, nx=p_grid.res[0], ny=p_grid.res[1], nz=p_grid.res[2])
-        self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
+        self.exactSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_1166.msh')
+        self.surface_topo = self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@triangleTopo")
+        self.exactSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@triangleTopo")
         self.exactSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
-        self.exactSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
+        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.exactSolution.addObject('BoxROI', name='ROI2', box=p_grid.size)
+        self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.coarse = self.exactSolution.addChild('CoarseMesh')
         self.ExactTopo = self.coarse.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
@@ -70,6 +74,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
         self.coarse.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
 
+
         self.exactSolution.addChild("visual")
         self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 0.5')
         self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
@@ -77,22 +82,35 @@ class AnimationStepController(Sofa.Core.Controller):
         # same object with different resolution
 
         self.LowResSolution = rootNode.addChild('LowResSolution2D', activated=True)
-        self.LowResTopo = self.LowResSolution.addObject('RegularGridTopology',name='grid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
-        self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
+        self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_75.msh')
+        self.surface_topo_LR = self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
+        self.LowResSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
-        self.LowResSolution.addObject('CGLinearSolver', iterations=250, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
+        self.LowResSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
-        self.LowResSolution.addObject('BoxROI', name='ROI2', box=p_grid_LR.size)
+        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
+        self.trained_nodes = self.LowResSolution.addChild('CoarseMesh')
+        self.LowResTopo = self.trained_nodes.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
+        self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
+        self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
+        self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
+        self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
+
         self.LowResSolution.addChild("visual")
-        self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
-       
+
+        self.LowResSolution.addChild("visual_noncorrected")
+        self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../grid', color='0 1 0 0.5')
+        self.LowResSolution.visual_noncorrected.addObject('IdentityMapping', input='@../DOFs', output='@./')
+
+        self.nb_nodes = len(self.MO1.position.value)
+        self.nb_nodes_LR = len(self.MO1_LR.position.value)
 
         self.high_res_shape = np.array((p_grid.nb_nodes, 3))
         self.low_res_shape = np.array((p_grid_LR.nb_nodes, 3))
@@ -102,19 +120,28 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         Called within the Sofa pipeline at the end of the scene graph initialisation.
         """
+        print("Simulation initialized.")
+        print("High resolution shape: ", self.high_res_shape)
+        print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
         self.save = True
-        self.efficient_sampling = False
-        self.timestep = 0
-        if self.efficient_sampling:
-            self.count_v = 0
-            self.num_versors = 5
-            self.versors = self.generate_versors(self.num_versors)
-            self.magnitudes = np.linspace(10, 80, 30)
-            self.count_m = 0
-            self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
-            self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
+        self.start_time = 0
+        self.count = 0
+        self.inside_counter = 0
+        self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+        self.directory =  self.directory + "_dynamic_simulation"
+        self.efficient_sampling = True
+        self.magnitudes = np.linspace(10, 40, 20)
+        self.angles = np.linspace(0, 2*np.pi, 20)
+        self.count_angle = 0
+        self.count_magnitude = 0
+        self.vector = np.array([np.cos(self.angles[0]), np.sin(self.angles[0]), 0])
+        self.versor = self.vector / np.linalg.norm(self.vector)
+        self.magnitude = self.magnitudes[0]
+        self.externalForce = self.magnitude * self.versor
+        self.count_angle += 1
+        self.count_magnitude += 1
         if self.save:
             if not os.path.exists('npy_GNN'):
                 os.mkdir('npy_GNN')
@@ -134,25 +161,28 @@ class AnimationStepController(Sofa.Core.Controller):
         if self.sampled:
             print("================== Sampled all magnitudes and versors ==================\n")
             print ("================== The simulation is over ==================\n")
-        if self.timestep % 1000 == 0:
+            self.close()
+        if self.count % 1000 == 0:
             if not self.efficient_sampling:
                 self.vector = np.random.uniform(-1, 1, 2)
                 self.versor = self.vector / np.linalg.norm(self.vector)
                 self.magnitude = np.random.uniform(10, 80)
                 self.externalForce = np.append(self.magnitude * self.versor, 0)
             else:
-                self.sample = self.count_m *self.num_versors + self.count_v
-                self.externalForce = np.append(self.magnitudes[self.count_m] * self.versors[self.count_v], 0)
-                
-                self.count_v += 1
-                if self.count_v == len(self.versors):
-                    self.count_v = 0
-                    self.count_m += 1
-                    self.versors = self.generate_versors(self.num_versors, starting_point=self.starting_points[self.count_m])
-                if self.count_m == len(self.magnitudes):
-                    self.count_m = 0
-                    self.count_v = 0
-                    self.sampled = True
+                self.magnitude = self.magnitudes[self.count_magnitude % len(self.magnitudes)]
+                self.vector = np.array([np.cos(self.angles[self.count_angle % len(self.angles)]), np.sin(self.angles[self.count_angle % len(self.angles)]), 0])
+                self.versor = self.vector / np.linalg.norm(self.vector)
+                self.externalForce = self.magnitude * self.versor
+                self.count_angle += 1
+                if self.count_angle % len(self.angles) == 0:
+                    self.count_magnitude += 1
+                    if self.count_magnitude % len(self.magnitudes) == 0:
+                        self.sampled = True
+                        print("Sampled all magnitudes and versors")
+                        print("The simulation is over")
+        
+
+
             self.exactSolution.removeObject(self.cff)
             self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
             self.cff.init()
@@ -180,30 +210,30 @@ class AnimationStepController(Sofa.Core.Controller):
         # cut the z component
         # U_high = U_high[:, :2]
             # U_low = U_low[:, :2]
-        if self.timestep % 10 == 0:
-            print(f"============================================ Saving data for timestep {self.timestep} ===========================================")
+        if self.count % 10 == 0 and not self.sampled:
+            print(f"============================================ Saving data for timestep {self.count} ===========================================")
             if self.save and not self.efficient_sampling:    
-                np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.timestep}.npy', np.array(U_high))
-                np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.timestep}.npy', np.array(U_low))
-                np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.timestep}.npy', np.array(edges_high))
-                np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.timestep}.npy', np.array(edges_low))
-                np.save(f'npy_GNN/{self.directory}/VelHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.timestep}.npy', np.array(vel_high))
-                np.save(f'npy_GNN/{self.directory}/VelLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.timestep}.npy', np.array(vel_low))
+                np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(U_high))
+                np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(U_low))
+                np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(edges_high))
+                np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(edges_low))
+                np.save(f'npy_GNN/{self.directory}/VelHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(vel_high))
+                np.save(f'npy_GNN/{self.directory}/VelLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(vel_low))
                
             elif self.save and self.efficient_sampling:
-                np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}_{self.timestep}.npy', np.array(U_high))
-                np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}_{self.timestep}.npy', np.array(U_low))
-                np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}_{self.timestep}.npy', np.array(edges_high))
-                np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}_{self.timestep}.npy', np.array(edges_low))
-                np.save(f'npy_GNN/{self.directory}/VelHigh_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}_{self.timestep}.npy', np.array(vel_high))
-                np.save(f'npy_GNN/{self.directory}/VelLow_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}_{self.timestep}.npy', np.array(vel_low))
+                np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(U_high))
+                np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(U_low))
+                np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(edges_high))
+                np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(edges_low))
+                np.save(f'npy_GNN/{self.directory}/VelHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(vel_high))
+                np.save(f'npy_GNN/{self.directory}/VelLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(vel_low))
                
             else:
                 print("High resolution displacement:\n", U_high[:3])
                 print("Low resolution displacement:\n", U_low[:3])
                 print("Edges:\n", edges_high[:3])
                 print("Edges:\n", edges_low[:3])
-        self.timestep += 1
+        self.count += 1
 
 
     def compute_displacement(self, mechanical_object):
@@ -227,8 +257,12 @@ class AnimationStepController(Sofa.Core.Controller):
         # create a matrix with the edges of the grid and their length
         edges = grid.edges.value.copy()
         positions = grid.position.value.copy()
-        matrix = np.zeros((len(edges), 3))
+        matrix = np.zeros((len(edges)*2, 3))
         for i, edge in enumerate(edges):
+            # account for the fact the edges must be bidirectional
+            matrix[len(edges) + i, 0] = edge[1]
+            matrix[len(edges) + i, 1] = edge[0]
+            matrix[len(edges) + i, 2] = np.linalg.norm(positions[edge[0]] - positions[edge[1]])
             matrix[i, 0] = edge[0]
             matrix[i, 1] = edge[1]
             matrix[i, 2] = np.linalg.norm(positions[edge[0]] - positions[edge[1]])

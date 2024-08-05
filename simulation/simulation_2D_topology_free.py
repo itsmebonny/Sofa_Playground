@@ -1,3 +1,4 @@
+from turtle import pos
 from cairo import Surface
 import Sofa
 import SofaRuntime
@@ -108,7 +109,7 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = True
+        self.save = False
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -228,9 +229,20 @@ class AnimationStepController(Sofa.Core.Controller):
         print("External force: ", np.linalg.norm(self.externalForce))
         U_high = self.compute_displacement(self.MO1_LR)
         U_low = self.compute_displacement(self.MO_training)
+        pos_high = self.compute_rest_position(self.MO1_LR)
+        pos_low = self.compute_rest_position(self.MO_training)
         # cut the z component
         # U_high = U_high[:, :2]
         # U_low = U_low[:, :2]
+
+        nb_nodes = self.MO_training.position.value.shape[0]
+        if not os.path.exists(f'npy/{nb_nodes}_nodes'):
+            os.makedirs(f'npy/{nb_nodes}_nodes')
+            np.save(f'npy/{nb_nodes}_nodes/HighResPoints.npy', np.array(pos_high))
+            np.save(f'npy/{nb_nodes}_nodes/CoarseResPoints.npy', np.array(pos_low))
+        else:
+            np.save(f'npy_beam/{nb_nodes}_nodes/HighResPoints.npy', np.array(pos_high))
+            np.save(f'npy_beam/{nb_nodes}_nodes/CoarseResPoints.npy', np.array(pos_low))
         print ("Displacement: ", np.linalg.norm(U_high - U_low))
         output = np.linalg.norm(U_high - U_low)
         self.outputs.append(output)

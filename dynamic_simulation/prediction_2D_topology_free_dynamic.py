@@ -12,7 +12,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
 from network.fully_connected_2D import Trainer as Trainer2D
-from network.FC_Error_estimation import Trainer as Trainer
+from network.FC_Error_estimation_dynamic import Trainer as Trainer
 from parameters_2D import p_grid, p_grid_LR, p_grid_test
 
 from scipy.interpolate import RBFInterpolator, griddata
@@ -24,7 +24,7 @@ class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
         self.externalForce = [0, -30, 0]
-        self.object_mass = 0.1
+        self.object_mass = 1
         self.createGraph(node)
         self.root = node
         self.save = False
@@ -32,10 +32,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
         self.RRMSE_error, self.RRMSE_deformation = [], []
-        self.network = Trainer('npy_gmsh/2024-07-19_13:59:21_estimation/train', 32, 0.001, 500)
+        self.network = Trainer('npy/2024-07-30_09:12:39_dynamic_simulation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-07-19_15:08:21.pth') # efficient noisy
+        self.network.load_model('models/model_2024-08-01_10:18:47_dynamic.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -150,6 +150,8 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.idx_surface = surface.triangles.value.reshape(-1)
         self.idx_surface_LR = surface_LR.triangles.value.reshape(-1)
+        self.angles = np.linspace(0, 2*np.pi, 20)
+        
 
 
 
@@ -159,13 +161,17 @@ class AnimationStepController(Sofa.Core.Controller):
         # 
         # self.MO_NN.position.value = self.MO_NN.rest_position.value
 
-        if self.timestep % 100 == 0:
+        if self.timestep % 5000 == 0:
             self.MO1.position.value = self.MO1.rest_position.value
             self.MO2.position.value = self.MO2.rest_position.value
 
+            indx = np.random.randint(0, 20)
+
             self.theta = np.random.uniform(0, 2*np.pi)
-            self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
-            self.magnitude = np.random.uniform(30, 70)
+            self.vector = np.array([np.cos(self.angles[indx]), np.sin(self.angles[indx]), 0])
+            self.versor = self.vector / np.linalg.norm(self.vector)
+            #self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
+            self.magnitude = np.random.uniform(10, 40)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
 
             #self.externalForce = [0, -60, 0]
@@ -189,47 +195,47 @@ class AnimationStepController(Sofa.Core.Controller):
                 y_min = 0.99
                 y_max = 1.01
                 
-            # Set the new bounding box
-            self.exactSolution.removeObject(self.cff_box)
-            self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1,
-                                                box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
-            self.cff_box.init()
+            # # Set the new bounding box
+            # self.exactSolution.removeObject(self.cff_box)
+            # self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1,
+            #                                     box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+            # self.cff_box.init()
 
-            self.LowResSolution.removeObject(self.cff_box_LR)
-            self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1,
-                                                box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
-            self.cff_box_LR.init()
+            # self.LowResSolution.removeObject(self.cff_box_LR)
+            # self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1,
+            #                                     box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+            # self.cff_box_LR.init()
 
-            # Get the intersection with the surface
-            indices = list(self.cff_box.indices.value)
-            indices = list(set(indices).intersection(set(self.idx_surface)))
-            indices_LR = list(self.cff_box_LR.indices.value)
-            indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
+            # # Get the intersection with the surface
+            # indices = list(self.cff_box.indices.value)
+            # indices = list(set(indices).intersection(set(self.idx_surface)))
+            # indices_LR = list(self.cff_box_LR.indices.value)
+            # indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
             self.exactSolution.removeObject(self.cff)
-            self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+            self.cff = self.exactSolution.addObject('ConstantForceField', indices='@ROI2.indices', totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
             self.cff.init()
 
 
             self.LowResSolution.removeObject(self.cffLR)
-            self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+            self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices='@ROI2.indices', totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
             self.cffLR.init()
         
-        if (self.timestep - 50) % 100 == 0:
-            indices = list(self.cff_box.indices.value)
-            indices = list(set(indices).intersection(set(self.idx_surface)))
-            indices_LR = list(self.cff_box_LR.indices.value)
-            indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
-            self.exactSolution.removeObject(self.cff)
-            self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=[0, 0, 0], showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-            self.cff.init()
+        # if (self.timestep - 50) % 100 == 0:
+        #     # indices = list(self.cff_box.indices.value)
+        #     # indices = list(set(indices).intersection(set(self.idx_surface)))
+        #     # indices_LR = list(self.cff_box_LR.indices.value)
+        #     # indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
+        #     self.exactSolution.removeObject(self.cff)
+        #     self.cff = self.exactSolution.addObject('ConstantForceField', indices='@ROI2.indices', totalForce=[0, 0, 0], showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+        #     self.cff.init()
 
 
-            self.LowResSolution.removeObject(self.cffLR)
-            self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=[0, 0, 0], showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-            self.cffLR.init()
+        #     self.LowResSolution.removeObject(self.cffLR)
+        #     self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices='@ROI2.indices', totalForce=[0, 0, 0], showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+        #     self.cffLR.init()
 
-        self.MO_training.reset_velocity = np.zeros_like(self.MO_training.velocity.value)
-        self.MO2.reset_velocity = np.zeros_like(self.MO2.velocity.value)
+        # self.MO_training.reset_velocity = np.zeros_like(self.MO_training.velocity.value)
+        # self.MO2.reset_velocity = np.zeros_like(self.MO2.velocity.value)
 
 
         self.start_time = process_time()
@@ -240,12 +246,17 @@ class AnimationStepController(Sofa.Core.Controller):
         
 
         coarse_pos = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
+        coarse_vel = self.MO_training.velocity.value.copy()
+
+        coarse_pos_res = np.reshape(coarse_pos, -1)
+        coarse_vel_res = np.reshape(coarse_vel, -1)
+
         
         #print("Coarse position: ", coarse_pos.shape)
         # cut the z component
         # coarse_pos = coarse_pos[:, :2]
         # print("Coarse position shape: ", coarse_pos.shape)
-        inputs = np.reshape(coarse_pos, -1)
+        inputs = np.concatenate((coarse_pos_res, coarse_vel_res))
         if self.network.normalized:
             scaler = MinMaxScaler()
             inputs = scaler.fit_transform(inputs)

@@ -12,7 +12,6 @@ from datetime import datetime
 
 from torchsummary import summary
 
-
 class FullyConnected(nn.Module):
     # Fully connected neural network with 4 hidden layers
     def __init__(self, input_size, output_size):
@@ -42,20 +41,6 @@ class RelativeMSELoss(nn.Module):
         normalizer = th.mean(th.square(true))
         return loss/normalizer
     
-class MixedLoss(nn.Module):
-    # Custom loss function that computes the weighted sum between the root mean squared error and the maximum absolute error
-    def __init__(self):
-        super(MixedLoss, self).__init__()
-
-    def forward(self, pred, true):
-        loss1 = th.sqrt(th.mean(th.square(pred - true)))
-        loss2 = th.max(th.abs(pred - true))
-        weight1 = 0.8
-        weight2 = 0.2
-        return weight1*loss1 + weight2*loss2
-    
-
-    
     
 
 class Data(Dataset):
@@ -66,16 +51,22 @@ class Data(Dataset):
         self.normalized = False
         try:
             self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints.npy')
+            self.coarse_vel_3D = np.load(f'{self.data_dir}/CoarseResVelocities.npy')
         except FileNotFoundError:
             self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints_normalized.npy')
+            self.coarse_vel_3D = np.load(f'{self.data_dir}/CoarseResVelocities_normalized.npy')
             self.normalized = True
 
         try:
             self.high_3D = np.load(f'{self.data_dir}/HighResPoints.npy')
+            self.high_vel_3D = np.load(f'{self.data_dir}/HighResVelocities.npy')
         except FileNotFoundError:
             self.high_3D = np.load(f'{self.data_dir}/HighResPoints_normalized.npy')
+            self.high_vel_3D = np.load(f'{self.data_dir}/HighResVelocities_normalized.npy')
 
-        self.data = self.coarse_3D.reshape(self.coarse_3D.shape[0], -1)
+        self.data_points = self.coarse_3D.reshape(self.coarse_3D.shape[0], -1)
+        self.data_velocities = self.coarse_vel_3D.reshape(self.coarse_vel_3D.shape[0], -1)
+        self.data = np.concatenate((self.data_points, self.data_velocities), axis=1)
         self.labels = self.high_3D - self.coarse_3D
         self.labels = self.labels.reshape(self.labels.shape[0], -1)
         
@@ -92,6 +83,52 @@ class Data(Dataset):
         noise = np.random.normal(0, 0.1, self.data[idx].shape)
         #return self.data[idx] + noise, self.labels[idx]
         return self.data[idx], self.labels[idx]
+    
+class DataDynamic(Dataset):
+    # Dataset class that loads the data from the npy files and manipulates them to prepare them for training
+
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
+        self.normalized = False
+        try:
+            self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints.npy')
+            self.coarse_vel_3D = np.load(f'{self.data_dir}/CoarseResVelocities.npy')
+        except FileNotFoundError:
+            self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints_normalized.npy')
+            self.coarse_vel_3D = np.load(f'{self.data_dir}/CoarseResVelocities_normalized.npy')
+            self.normalized = True
+
+        try:
+            self.high_3D = np.load(f'{self.data_dir}/HighResPoints.npy')
+            self.high_vel_3D = np.load(f'{self.data_dir}/HighResVelocities.npy')
+        except FileNotFoundError:
+            self.high_3D = np.load(f'{self.data_dir}/HighResPoints_normalized.npy')
+            self.high_vel_3D = np.load(f'{self.data_dir}/HighResVelocities_normalized.npy')
+
+        self.data_points = self.coarse_3D.reshape(self.coarse_3D.shape[0], -1)
+        self.data_velocities = self.coarse_vel_3D.reshape(self.coarse_vel_3D.shape[0], -1)
+        self.data = np.concatenate((self.data_points, self.data_velocities), axis=1)
+        
+        self.target_disploacements = self.high_3D - self.coarse_3D
+        self.target_velocities = self.high_vel_3D - self.coarse_vel_3D
+        self.target_disploacements = self.target_disploacements.reshape(self.target_disploacements.shape[0], -1)
+        self.target_velocities = self.target_velocities.reshape(self.target_velocities.shape[0], -1)
+
+        self.labels = np.concatenate((self.target_disploacements, self.target_velocities), axis=1)
+
+        self.output_size = self.labels.shape[1]
+        self.input_size = self.data.shape[1]
+
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        # add noise to the data
+        noise = np.random.normal(0, 0.1, self.data[idx].shape)
+        #return self.data[idx] + noise, self.labels[idx]
+        return self.data[idx], self.labels[idx]
+        
     
 class EarlyStopper:
     def __init__(self, patience=1, min_delta=0):
@@ -128,19 +165,18 @@ class Trainer:
         self.model = FullyConnected(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-        self.criterion = MixedLoss()
         #self.criterion = RelativeMSELoss()
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=10, min_lr=1e-8)
         
     
     def load_data(self):
-        data = Data(self.data_dir)
-        train_data, val_data = train_test_split(data, test_size=0.2)
+        data = DataDynamic(self.data_dir)
+        train_data, val_data = train_test_split(data, test_size=0.1)
         return train_data, val_data, data.input_size, data.output_size, data.normalized
     
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=40, min_delta=1e-8)
+        early_stopper = EarlyStopper(patience=100, min_delta=0.0001)
         for epoch in range(self.epochs):
             running_loss = 0.0
             for i, data in enumerate(tqdm(self.train_loader)):
@@ -196,13 +232,13 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-08-01_11:50:52_estimation/train'
-    data = Data(data_dir)
+    data_dir = 'npy/2024-07-29_09:24:58_dynamic_simulation/train'
+    data = DataDynamic(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
-    trainer = Trainer(data_dir, 32, 0.001, 1000)
+    trainer = Trainer(data_dir, 32, 0.1, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_beam')
+    trainer.save_model(f'model_{training_time}_dynamic')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

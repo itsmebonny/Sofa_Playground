@@ -266,9 +266,19 @@ class AnimationStepController(Sofa.Core.Controller):
         
         U_high = self.compute_displacement(self.MO_MapHR)
         U_low = self.compute_displacement(self.MO_MapLR)
+        pos_high = self.compute_rest_position(self.MO_MapHR)
+        pos_low = self.compute_rest_position(self.MO_MapLR)
         # cut the z component
         # U_high = U_high[:, :2]
         # U_low = U_low[:, :2]
+        nb_nodes = self.MO_MapHR.position.value.shape[0]
+        if not os.path.exists(f'npy_beam/{nb_nodes}_nodes'):
+            os.makedirs(f'npy_beam/{nb_nodes}_nodes')
+            np.save(f'npy_beam/{nb_nodes}_nodes/HighResPoints.npy', np.array(pos_high))
+            np.save(f'npy_beam/{nb_nodes}_nodes/CoarseResPoints.npy', np.array(pos_low))
+        else:
+            np.save(f'npy_beam/{nb_nodes}_nodes/HighResPoints.npy', np.array(pos_high))
+            np.save(f'npy_beam/{nb_nodes}_nodes/CoarseResPoints.npy', np.array(pos_low))
        
         print ("Displacement: ", np.linalg.norm(U_high - U_low))
         output = np.linalg.norm(U_high - U_low)
@@ -277,6 +287,7 @@ class AnimationStepController(Sofa.Core.Controller):
             if self.save and not self.efficient_sampling:    
                 np.save(f'npy_beam/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
                 np.save(f'npy_beam/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
+
             elif self.save and self.efficient_sampling:
                 np.save(f'npy_beam/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_high))
                 np.save(f'npy_beam/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_m], 3)}_x_{round(self.versors[self.count_v][0], 3)}_y_{round(self.versors[self.count_v][1], 3)}.npy', np.array(U_low))

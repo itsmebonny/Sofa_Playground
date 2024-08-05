@@ -31,6 +31,26 @@ class FullyConnected(nn.Module):
         x = self.fc4(x)
         return x
     
+class Convolution2D(nn.Module):
+    # Convolutional neural network with 2D convolutional layers with input shape [None, 2500, 3, 2]
+    def __init__(self, input_shape, output_size):
+        super(Convolution2D, self).__init__()
+        self.conv1 = nn.Conv2d(2500, 32, 3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+        self.fc1 = nn.Linear(12*32, 128)
+        self.fc2 = nn.Linear(128, output_size)
+
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+    
+
+    
 
 class RelativeMSELoss(nn.Module):
     # Custom loss function that computes the mean squared error between the predicted and true values and normalizes it by the true value
@@ -75,12 +95,25 @@ class Data(Dataset):
         except FileNotFoundError:
             self.high_3D = np.load(f'{self.data_dir}/HighResPoints_normalized.npy')
 
-        self.data = self.coarse_3D.reshape(self.coarse_3D.shape[0], -1)
+        # count nb of nodes 
+        nb_nodes = self.coarse_3D.shape[1]
+        # load the position of the nodes
+        #split directory to get the number of nodes
+        parent_directory = data_dir.split('/')[0]
+        positions = np.load(f'{parent_directory}/{nb_nodes}_nodes/CoarseResPoints.npy')
+
+        positions_repeated = np.repeat(positions[np.newaxis, :, :], self.coarse_3D.shape[0], axis=0)
+        
+
+        self.data = np.concatenate((self.coarse_3D[:,:,:,np.newaxis], positions_repeated[:,:,:,np.newaxis]), axis=-1)
         self.labels = self.high_3D - self.coarse_3D
+
         self.labels = self.labels.reshape(self.labels.shape[0], -1)
         
         self.output_size = self.labels.shape[1]
         self.input_size = self.data.shape[1]
+        self.input_shape = self.data.shape
+        print(f"Input shape: {self.input_shape}")
 
 
     
@@ -125,7 +158,7 @@ class Trainer:
         print(f"Input size: {input_size}, Output size: {output_size}")
         self.train_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False)
-        self.model = FullyConnected(input_size, output_size).to(self.device)
+        self.model = Convolution2D(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         self.criterion = MixedLoss()
@@ -136,7 +169,7 @@ class Trainer:
     def load_data(self):
         data = Data(self.data_dir)
         train_data, val_data = train_test_split(data, test_size=0.2)
-        return train_data, val_data, data.input_size, data.output_size, data.normalized
+        return train_data, val_data, data.input_shape, data.output_size, data.normalized
     
     def train(self):
         self.model.train()
@@ -196,7 +229,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-08-01_11:50:52_estimation/train'
+    data_dir = 'npy_beam/2024-07-23_09:23:48_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
     trainer = Trainer(data_dir, 32, 0.001, 1000)

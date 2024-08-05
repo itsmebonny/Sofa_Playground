@@ -37,7 +37,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.network = Trainer('npy_beam/2024-07-23_09:23:48_estimation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-07-23_15:58:02_beam.pth') # efficient noisy
+        self.network.load_model('models/model_2024-08-05_12:12:54_beam.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -187,7 +187,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.z = np.random.uniform(-1, 1)
         self.phi = np.random.uniform(0, 2*np.pi)
         self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-        self.magnitude = np.random.uniform(80, 100)
+        self.magnitude = np.random.uniform(0, 100)
         self.externalForce = self.magnitude * self.versor
 
         side = np.random.randint(1, 6)

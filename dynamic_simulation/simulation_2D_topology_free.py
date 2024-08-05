@@ -22,12 +22,13 @@ class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
         self.externalForce = [0, -20, 0]
-        self.object_mass = 1
+        self.object_mass = 0.05
         self.createGraph(node)
         self.root = node
         self.save = True
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
+        self.RMSE_error, self.RMSE_deformation = [], []
         
     def createGraph(self, rootNode):
 
@@ -125,12 +126,23 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
-        self.save = True
+        self.save = False
         self.start_time = 0
         self.count = 0
         self.inside_counter = 0
         self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-        self.directory =  self.directory + "_dynamic_simulation" 
+        self.directory =  self.directory + "_dynamic_simulation"
+        self.efficient_sampling = True
+        self.magnitudes = np.linspace(10, 40, 20)
+        self.angles = np.linspace(0, 2*np.pi, 20)
+        self.count_angle = 0
+        self.count_magnitude = 0
+        self.vector = np.array([np.cos(self.angles[0]), np.sin(self.angles[0]), 0])
+        self.versor = self.vector / np.linalg.norm(self.vector)
+        self.magnitude = self.magnitudes[0]
+        self.externalForce = self.magnitude * self.versor
+        self.count_angle += 1
+        self.count_magnitude += 1
         if self.save:
             if not os.path.exists('npy'):
                 os.mkdir('npy')
@@ -139,23 +151,33 @@ class AnimationStepController(Sofa.Core.Controller):
             
             os.makedirs(f'npy/{self.directory}')
             print(f"Saving data to npy/{self.directory}")
+        self.sampled = False
 
 
 
     def onAnimateBeginEvent(self, event):
 
-        # reset positions
-        # self.MO1.position.value = self.MO1.rest_position.value
-        # self.MO2.position.value = self.MO2.rest_position.value
-        # self.MO_NN.position.value = self.MO_NN.rest_position.value
+        if self.sampled:
+            print("================== Sampled all magnitudes and versors ==================\n")
+            print ("================== The simulation is over ==================\n")
         if self.count % 5000 == 0:
             self.inside_counter = 0
             self.MO1.position.value = self.MO1.rest_position.value
             self.MO2.position.value = self.MO2.rest_position.value
-            self.vector = np.random.uniform(-1, 1, 2)
-            self.versor = self.vector / np.linalg.norm(self.vector)
-            self.magnitude = np.random.uniform(10, 40)
-            self.externalForce = np.append(self.magnitude * self.versor, 0)
+            if not self.efficient_sampling:
+                self.vector = np.random.uniform(-1, 1, 2)
+                self.versor = self.vector / np.linalg.norm(self.vector)
+                self.magnitude = np.random.uniform(10, 40)
+                self.externalForce = np.append(self.magnitude * self.versor, 0)
+            else:
+                self.magnitude = self.magnitudes[self.count_magnitude % len(self.magnitudes)]
+                self.vector = np.array([np.cos(self.angles[self.count_angle % len(self.angles)]), np.sin(self.angles[self.count_angle % len(self.angles)]), 0])
+                self.versor = self.vector / np.linalg.norm(self.vector)
+                self.externalForce = self.magnitude * self.versor
+                self.count_angle += 1
+                self.count_magnitude += 1
+
+            
         self.count += 1
         self.inside_counter += 1
         #self.externalForce = [0, -20, 0]
@@ -181,7 +203,7 @@ class AnimationStepController(Sofa.Core.Controller):
         V_high = self.compute_velocity(self.MO1_LR)
         V_low = self.compute_velocity(self.MO_training)
         #save data
-        if self.save and ((self.count % 100 == 0 and self.inside_counter > 2500) or (self.count % 50 == 0 and self.inside_counter <= 2500)):
+        if self.save and ((self.count % 100 == 0 and self.inside_counter > 2500) or (self.count % 25 == 0 and self.inside_counter <= 2500)):
             np.save(f'npy/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(U_high))
             np.save(f'npy/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(U_low))
             np.save(f'npy/{self.directory}/HighResVel_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(V_high))
