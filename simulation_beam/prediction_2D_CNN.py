@@ -14,7 +14,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
 from network.fully_connected_2D import Trainer as Trainer2D
-from network.FC_Error_estimation import Trainer as Trainer
+from network.CNN_Error_estimation import Trainer as Trainer
 from parameters_2D import p_grid, p_grid_LR, p_grid_test
 
 from scipy.interpolate import RBFInterpolator, griddata
@@ -36,10 +36,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
         self.RRMSE_error, self.RRMSE_deformation = [], []
-        self.network = Trainer('npy_beam/2024-07-23_09:23:48_estimation/train', 32, 0.001, 500)
+        self.network = Trainer('npy_beam/2024-08-01_11:50:52_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-08-06_16:04:33_beam.pth') # efficient noisy
+        self.network.load_model('models/model_2024-08-06_16:30:46_CNN_beam.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -278,7 +278,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # cut the z component
         # coarse_pos = coarse_pos[:, :2]
         # print("Coarse position shape: ", coarse_pos.shape)
-        inputs = np.reshape(coarse_pos, -1)
+        inputs = np.reshape(coarse_pos, (1 ,coarse_pos.shape[1], p_grid.res[2], p_grid.res[1], p_grid.res[0]))
         if self.network.normalized:
             scaler = MinMaxScaler()
             inputs = scaler.fit_transform(inputs)

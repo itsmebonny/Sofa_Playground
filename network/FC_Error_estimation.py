@@ -48,11 +48,17 @@ class MixedLoss(nn.Module):
         super(MixedLoss, self).__init__()
 
     def forward(self, pred, true):
-        loss1 = th.sqrt(th.mean(th.square(pred - true)))
-        loss2 = th.max(th.abs(pred - true))
-        weight1 = 0.8
-        weight2 = 0.2
-        return weight1*loss1 + weight2*loss2
+        # select the indices where the absolute value is greater than 1
+        mask = th.abs(true) > 1
+        if th.sum(mask) > 200:
+            loss1 = th.sqrt(th.mean(th.square(pred[mask] - true[mask])))
+            loss2 = th.sqrt(th.mean(th.square(pred[~mask] - true[~mask])))
+            return 0.7*loss1 + 0.3*loss2
+        else:
+            loss1 = th.sqrt(th.mean(th.square(pred - true)))
+            loss2 = th.max(th.abs(pred - true))
+            return 0.7*loss1 + 0.3*loss2
+    
     
 
     

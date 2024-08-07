@@ -10,6 +10,13 @@ import os
 from tqdm import tqdm
 from datetime import datetime
 
+import os 
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../simulation_beam'))
+
+from simulation_beam.parameters_2D import p_grid, p_grid_LR
+
+
 from torchsummary import summary
 
 
@@ -31,22 +38,35 @@ class FullyConnected(nn.Module):
         x = self.fc4(x)
         return x
     
-class Convolution2D(nn.Module):
+class Convolution3D(nn.Module):
     # Convolutional neural network with 2D convolutional layers with input shape [None, 2500, 3, 2]
     def __init__(self, input_shape, output_size):
-        super(Convolution2D, self).__init__()
-        self.conv1 = nn.Conv2d(2500, 32, 3, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
-        self.fc1 = nn.Linear(12*32, 128)
-        self.fc2 = nn.Linear(128, output_size)
+        super(Convolution3D, self).__init__()
+        self.conv1 = nn.Conv3d(3, 32, 5, padding=1)
+        self.conv2 = nn.Conv3d(32, 64, 3, padding=1)
+        self.conv3 = nn.Conv3d(64, 128, 3, padding=1)
+        self.batchnorm1 = nn.BatchNorm3d(32)
+        self.batchnorm2 = nn.BatchNorm3d(64)
+        self.batchnorm3 = nn.BatchNorm3d(128)
 
+        self.fc1 = nn.Linear(256, 1024)
+        self.fc2 = nn.Linear(1024, 2048)
+        self.fc3 = nn.Linear(2048, output_size)
+        self.dropout = nn.Dropout(0.25) 
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
+        x = F.max_pool3d(x, 2)
+        x = self.batchnorm1(x)
         x = F.relu(self.conv2(x))
+        x = F.max_pool3d(x, 2)
+        x = F.relu(self.conv3(x))
+        x = F.max_pool3d(x, 2)
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = F.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.fc3(x)
         return x
     
 
@@ -68,13 +88,16 @@ class MixedLoss(nn.Module):
         super(MixedLoss, self).__init__()
 
     def forward(self, pred, true):
-        loss1 = th.sqrt(th.mean(th.square(pred - true)))
-        loss2 = th.max(th.abs(pred - true))
-        weight1 = 0.8
-        weight2 = 0.2
-        return weight1*loss1 + weight2*loss2
-    
-
+        # select the indices where the absolute value is greater than 1
+        mask = th.abs(true) > 1
+        if th.sum(mask) > 200:
+            loss1 = th.sqrt(th.mean(th.square(pred[mask] - true[mask])))
+            loss2 = th.sqrt(th.mean(th.square(pred[~mask] - true[~mask])))
+            return 0.7*loss1 + 0.3*loss2
+        else:
+            loss1 = th.sqrt(th.mean(th.square(pred - true)))
+            loss2 = th.max(th.abs(pred - true))
+            return 0.7*loss1 + 0.3*loss2
     
     
 
@@ -86,6 +109,7 @@ class Data(Dataset):
         self.normalized = False
         try:
             self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints.npy')
+            print(f"Max: {np.mean(self.coarse_3D)}")
         except FileNotFoundError:
             self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints_normalized.npy')
             self.normalized = True
@@ -97,15 +121,12 @@ class Data(Dataset):
 
         # count nb of nodes 
         nb_nodes = self.coarse_3D.shape[1]
-        # load the position of the nodes
-        #split directory to get the number of nodes
-        parent_directory = data_dir.split('/')[0]
-        positions = np.load(f'{parent_directory}/{nb_nodes}_nodes/CoarseResPoints.npy')
-
-        positions_repeated = np.repeat(positions[np.newaxis, :, :], self.coarse_3D.shape[0], axis=0)
-        
-
-        self.data = np.concatenate((self.coarse_3D[:,:,:,np.newaxis], positions_repeated[:,:,:,np.newaxis]), axis=-1)
+        nb_grid = p_grid.res[0]*p_grid.res[1]*p_grid.res[2]
+        if nb_nodes != nb_grid:
+            print(f"Number of nodes: {nb_nodes}")
+            print(f"Number of grid points: {nb_grid}")
+            print("Error: Number of nodes does not match the number of grid points")
+        self.data = self.coarse_3D.reshape(self.coarse_3D.shape[0], self.coarse_3D.shape[2], p_grid.res[2], p_grid.res[1], p_grid.res[0])        
         self.labels = self.high_3D - self.coarse_3D
 
         self.labels = self.labels.reshape(self.labels.shape[0], -1)
@@ -122,7 +143,7 @@ class Data(Dataset):
     
     def __getitem__(self, idx):
         # add noise to the data
-        noise = np.random.normal(0, 0.1, self.data[idx].shape)
+        noise = np.random.normal(0, 0.5, self.data[idx].shape)
         #return self.data[idx] + noise, self.labels[idx]
         return self.data[idx], self.labels[idx]
     
@@ -158,7 +179,7 @@ class Trainer:
         print(f"Input size: {input_size}, Output size: {output_size}")
         self.train_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False)
-        self.model = Convolution2D(input_size, output_size).to(self.device)
+        self.model = Convolution3D(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         self.criterion = MixedLoss()
@@ -217,7 +238,7 @@ class Trainer:
         th.save(self.model.state_dict(), model_dir)
     
     def load_model(self, model_dir):
-        self.model.load_state_dict(th.load(model_dir))
+        self.model.load_state_dict(th.load(model_dir), strict=False)
         self.model.eval()
     
     def predict(self, input_data):
@@ -229,13 +250,13 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-07-23_09:23:48_estimation/train'
+    data_dir = 'npy_beam/2024-08-01_11:50:52_estimation/train'
     data = Data(data_dir)
     model = FullyConnected(data.input_size, data.output_size)
     trainer = Trainer(data_dir, 32, 0.001, 1000)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_beam')
+    trainer.save_model(f'model_{training_time}_CNN_beam')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))
