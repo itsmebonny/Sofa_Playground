@@ -22,12 +22,13 @@ class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
         self.externalForce = [0, -20, 0]
-        self.object_mass = 1
+        self.object_mass = 0.05
         self.createGraph(node)
         self.root = node
         self.save = True
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
+        self.RMSE_error, self.RMSE_deformation = [], []
         
     def createGraph(self, rootNode):
 
@@ -125,7 +126,7 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
-        self.save = True
+        self.save = False
         self.start_time = 0
         self.count = 0
         self.inside_counter = 0
@@ -150,16 +151,16 @@ class AnimationStepController(Sofa.Core.Controller):
             
             os.makedirs(f'npy/{self.directory}')
             print(f"Saving data to npy/{self.directory}")
+        self.sampled = False
 
 
 
     def onAnimateBeginEvent(self, event):
 
-        # reset positions
-        # self.MO1.position.value = self.MO1.rest_position.value
-        # self.MO2.position.value = self.MO2.rest_position.value
-        # self.MO_NN.position.value = self.MO_NN.rest_position.value
-        if self.count % 5000 == 0:
+        if self.sampled:
+            print("================== Sampled all magnitudes and versors ==================\n")
+            print ("================== The simulation is over ==================\n")
+        if self.count % 1000 == 0:
             self.inside_counter = 0
             self.MO1.position.value = self.MO1.rest_position.value
             self.MO2.position.value = self.MO2.rest_position.value
@@ -202,18 +203,12 @@ class AnimationStepController(Sofa.Core.Controller):
         V_high = self.compute_velocity(self.MO1_LR)
         V_low = self.compute_velocity(self.MO_training)
         #save data
-        if self.save and (self.count % 100 == 0 and self.inside_counter > 2500):
+        if self.save and self.inside_counter % 10 == 0:
             np.save(f'npy/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(U_high))
             np.save(f'npy/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(U_low))
             np.save(f'npy/{self.directory}/HighResVel_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(V_high))
             np.save(f'npy/{self.directory}/CoarseResVel_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}.npy', np.array(V_low))
             print(f"Saved data for {round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/100)}")
-        elif self.save and (self.count % 25 == 0 and self.inside_counter <= 2500):
-            np.save(f'npy/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/25)}.npy', np.array(U_high))
-            np.save(f'npy/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/25)}.npy', np.array(U_low))
-            np.save(f'npy/{self.directory}/HighResVel_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/25)}.npy', np.array(V_high))
-            np.save(f'npy/{self.directory}/CoarseResVel_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/25)}.npy', np.array(V_low))
-            print(f"Saved data for {round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{int(self.count/25)}")
 
         
     def compute_displacement(self, mechanical_object):
