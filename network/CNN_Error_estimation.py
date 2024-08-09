@@ -89,7 +89,7 @@ class MixedLoss(nn.Module):
 
     def forward(self, pred, true):
         # select the indices where the absolute value is greater than 1
-        mask = th.abs(true) > 1
+        mask = th.abs(true) > 0.5
         if th.sum(mask) > 200:
             loss1 = th.sqrt(th.mean(th.square(pred[mask] - true[mask])))
             loss2 = th.sqrt(th.mean(th.square(pred[~mask] - true[~mask])))
@@ -109,7 +109,6 @@ class Data(Dataset):
         self.normalized = False
         try:
             self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints.npy')
-            print(f"Max: {np.mean(self.coarse_3D)}")
         except FileNotFoundError:
             self.coarse_3D = np.load(f'{self.data_dir}/CoarseResPoints_normalized.npy')
             self.normalized = True
@@ -250,10 +249,10 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-08-01_11:50:52_estimation/train'
-    data = Data(data_dir)
-    model = FullyConnected(data.input_size, data.output_size)
-    trainer = Trainer(data_dir, 32, 0.001, 1000)
+    data_dir = 'npy_beam/2024-08-07_16:39:32_estimation/train'
+    # data = Data(data_dir)
+    # model = FullyConnected(data.input_size, data.output_size)
+    trainer = Trainer(data_dir, 64, 0.001, 1000)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     trainer.save_model(f'model_{training_time}_CNN_beam')

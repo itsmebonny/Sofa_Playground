@@ -1,7 +1,3 @@
-from tabnanny import check
-from turtle import position
-
-from networkx import draw
 import Sofa
 import SofaRuntime
 import numpy as np 

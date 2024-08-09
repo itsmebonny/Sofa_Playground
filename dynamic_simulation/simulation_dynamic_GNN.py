@@ -125,15 +125,15 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
-        self.save = True
+        self.save = False
         self.start_time = 0
         self.count = 0
         self.inside_counter = 0
         self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
         self.directory =  self.directory + "_dynamic_simulation"
-        self.efficient_sampling = True
+        self.efficient_sampling = False
         self.magnitudes = np.linspace(10, 40, 20)
-        self.angles = np.linspace(0, 2*np.pi, 20)
+        self.angles = np.linspace(0, 2*np.pi, 30)
         self.count_angle = 0
         self.count_magnitude = 0
         self.vector = np.array([np.cos(self.angles[0]), np.sin(self.angles[0]), 0])
@@ -163,11 +163,16 @@ class AnimationStepController(Sofa.Core.Controller):
             print ("================== The simulation is over ==================\n")
             self.close()
         if self.count % 1000 == 0:
+            print(f"================== Time step {self.count} ==================")
+            self.MO1.position.value = self.MO1.rest_position.value
+            self.MO2.position.value = self.MO2.rest_position.value
             if not self.efficient_sampling:
-                self.vector = np.random.uniform(-1, 1, 2)
+                self.angle = np.random.uniform(0, 2*np.pi)
+                self.vector = np.array([np.cos(self.angle), np.sin(self.angle)])
                 self.versor = self.vector / np.linalg.norm(self.vector)
-                self.magnitude = np.random.uniform(10, 80)
+                self.magnitude = np.random.uniform(10, 20)
                 self.externalForce = np.append(self.magnitude * self.versor, 0)
+                print("Random external force: ", self.externalForce)
             else:
                 self.magnitude = self.magnitudes[self.count_magnitude % len(self.magnitudes)]
                 self.vector = np.array([np.cos(self.angles[self.count_angle % len(self.angles)]), np.sin(self.angles[self.count_angle % len(self.angles)]), 0])
@@ -202,11 +207,14 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
         U_high = self.compute_displacement(self.MO1_LR)
-        U_low = self.compute_displacement(self.MO2)
+        U_test = self.compute_displacement(self.MO1)
+        U_low = self.compute_displacement(self.MO_training)
         vel_high = self.compute_velocity(self.MO1_LR)
-        vel_low = self.compute_velocity(self.MO2)
+        vel_low = self.compute_velocity(self.MO_training)
         edges_high = self.compute_edges(self.ExactTopo)
         edges_low = self.compute_edges(self.LowResTopo)
+        print(f"Max displacement high resolution: {np.max(np.abs(U_test))}")
+        print(f"Displacement: {U_high[44]}")
         # cut the z component
         # U_high = U_high[:, :2]
             # U_low = U_low[:, :2]
@@ -229,10 +237,11 @@ class AnimationStepController(Sofa.Core.Controller):
                 np.save(f'npy_GNN/{self.directory}/VelLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(vel_low))
                
             else:
-                print("High resolution displacement:\n", U_high[:3])
-                print("Low resolution displacement:\n", U_low[:3])
-                print("Edges:\n", edges_high[:3])
-                print("Edges:\n", edges_low[:3])
+                pass
+                # print("High resolution displacement:\n", U_high[:3])
+                # print("Low resolution displacement:\n", U_low[:3])
+                # print("Edges:\n", edges_high[:3])
+                # print("Edges:\n", edges_low[:3])
         self.count += 1
 
 
@@ -245,10 +254,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # Compute the velocity of the high resolution solution
         return mechanical_object.velocity.value.copy()
     
-    def compute_acceleration(self, mechanical_object):
-        # Compute the acceleration of the high resolution solution
-        return mechanical_object.acceleration.value.copy()
-    
+
     def compute_rest_position(self, mechanical_object):
         # Compute the position of the high resolution solution
         return mechanical_object.rest_position.value.copy()

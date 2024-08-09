@@ -12,7 +12,6 @@ from datetime import datetime
 
 from torchsummary import summary
 
-
 class FullyConnected(nn.Module):
     # Fully connected neural network with 4 hidden layers
     def __init__(self, input_size, output_size):
@@ -32,6 +31,9 @@ class FullyConnected(nn.Module):
         return x
     
 
+
+    
+
 class RelativeMSELoss(nn.Module):
     # Custom loss function that computes the mean squared error between the predicted and true values and normalizes it by the true value
     def __init__(self):
@@ -49,8 +51,8 @@ class MixedLoss(nn.Module):
 
     def forward(self, pred, true):
         # select the indices where the absolute value is greater than 1
-        mask = th.abs(true) > 1
-        if th.sum(mask) > 200:
+        mask = th.abs(true) > 0.5
+        if th.sum(mask) > 50:
             loss1 = th.sqrt(th.mean(th.square(pred[mask] - true[mask])))
             loss2 = th.sqrt(th.mean(th.square(pred[~mask] - true[~mask])))
             return 0.7*loss1 + 0.3*loss2
@@ -58,10 +60,6 @@ class MixedLoss(nn.Module):
             loss1 = th.sqrt(th.mean(th.square(pred - true)))
             loss2 = th.max(th.abs(pred - true))
             return 0.7*loss1 + 0.3*loss2
-    
-    
-
-    
     
 
 class Data(Dataset):
@@ -89,6 +87,23 @@ class Data(Dataset):
         self.input_size = self.data.shape[1]
 
 
+
+    def pooling_3D(self, displacement, low_resh_shape=None):
+        if low_resh_shape is None:
+            low_resh_shape = displacement.shape[1]//2, displacement.shape[2]//2, displacement.shape[3]
+        y, x, z = low_resh_shape
+        pool = np.zeros((displacement.shape[0], y, x, z))
+
+        for i in range(displacement.shape[0]):
+            for j in range(y):
+                for k in range(x):
+                    # check if the point is on the boundary
+                    if k == 0:
+                        pool[i, j, k] = displacement[i, 2*j, 2*k]
+                    else:
+                        pool[i, j, k] = np.mean(displacement[i, 2*j:2*j+2, 2*k:2*k+2], axis=(0, 1))
+        
+        return pool
     
     def __len__(self):
         return len(self.data)
@@ -100,15 +115,19 @@ class Data(Dataset):
         return self.data[idx], self.labels[idx]
     
 class EarlyStopper:
-    def __init__(self, patience=1, min_delta=0):
+    def __init__(self, patience=1, min_delta=0, lr = 0.001):
         self.patience = patience
         self.min_delta = min_delta
         self.counter = 0
         self.min_validation_loss = float('inf')
+        self.lr = lr
 
-    def early_stop(self, validation_loss):
+    def early_stop(self, validation_loss, learning_rate):
         if validation_loss < self.min_validation_loss:
             self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif learning_rate != self.lr:
+            self.lr = learning_rate
             self.counter = 0
         elif validation_loss > (self.min_validation_loss + self.min_delta):
             self.counter += 1
@@ -135,7 +154,6 @@ class Trainer:
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
         self.criterion = MixedLoss()
-        #self.criterion = RelativeMSELoss()
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=10, min_lr=1e-8)
         
     
@@ -146,7 +164,7 @@ class Trainer:
     
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=40, min_delta=1e-8)
+        early_stopper = EarlyStopper(patience=40, min_delta=0.000001, lr=self.lr)
         for epoch in range(self.epochs):
             running_loss = 0.0
             for i, data in enumerate(tqdm(self.train_loader)):
@@ -162,7 +180,7 @@ class Trainer:
             print(f"Learning rate: {self.optimizer.param_groups[0]['lr']}")
             val_loss = self.validate()
             if val_loss is not None:
-                if early_stopper.early_stop(val_loss):
+                if early_stopper.early_stop(val_loss, self.optimizer.param_groups[0]['lr']):
                     print("Early stopping")
                     break
                 self.scheduler.step(val_loss)
@@ -202,13 +220,12 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-08-01_11:50:52_estimation/train'
-    data = Data(data_dir)
-    model = FullyConnected(data.input_size, data.output_size)
-    trainer = Trainer(data_dir, 32, 0.001, 1000)
+    data_dir = 'npy_gmsh/2024-08-09_11:36:13_symmetric/train'
+
+    trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_beam')
+    trainer.save_model(f'model_{training_time}')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

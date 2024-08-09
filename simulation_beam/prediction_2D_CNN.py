@@ -36,10 +36,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
         self.RRMSE_error, self.RRMSE_deformation = [], []
+        self.percentages = []
         self.network = Trainer('npy_beam/2024-08-01_11:50:52_estimation/train', 32, 0.001, 1000)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-08-06_16:30:46_CNN_beam.pth') # efficient noisy
+        self.network.load_model('models/model_2024-08-08_11:31:43_CNN_beam.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -136,9 +137,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../gridLow', color='1 0 0')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
-        # self.LowResSolution.addChild("visual_noncorrected")
-        # self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../../loader', color='0 1 0 0.5')
-        # self.LowResSolution.visual_noncorrected.addObject('BarycentricMapping', input='@../DOFs', output='@./')
+        self.LowResSolution.addChild("visual_noncorrected")
+        self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../../loader', color='0 1 0 0.5')
+        self.LowResSolution.visual_noncorrected.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
 
         print("High resolution shape: ", self.MO_sampling.position.value.shape)
@@ -404,6 +405,12 @@ class AnimationStepController(Sofa.Core.Controller):
             #ADD Relative RMSE
             self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
 
+            #number of nodes with error < 1e-3
+            mask = np.abs(error) < 1e-2
+            nb_nodes = np.sum(mask)
+            percentage_err = 100 * nb_nodes / error.shape[0]
+            self.percentages.append(percentage_err)
+
     def close(self):
 
         if len(self.l2_error) > 0:
@@ -428,9 +435,10 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
-            print("\nRRMSE Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.RRMSE_error), 6)} ± {np.round(np.std(self.RRMSE_error), 6)} m")
-            print(f"\t- Extrema : {np.round(np.min(self.RRMSE_error), 6)} -> {np.round(np.max(self.RRMSE_error), 6)} m")
+            print("\nPercentages of nodes with error < 1e-3 :")
+            print(f"\t- Distribution : {np.round(np.mean(self.percentages), 6)} ± {np.round(np.std(self.percentages), 6)} %")
+            print(f"\t- Extrema : {np.round(np.min(self.percentages), 6)} -> {np.round(np.max(self.percentages), 6)} %")
+
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise
