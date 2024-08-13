@@ -249,7 +249,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-08-07_16:39:32_estimation/train'
+    data_dir = 'npy_beam/2024-08-12_17:11:01_symmetric/train'
     # data = Data(data_dir)
     # model = FullyConnected(data.input_size, data.output_size)
     trainer = Trainer(data_dir, 64, 0.001, 1000)

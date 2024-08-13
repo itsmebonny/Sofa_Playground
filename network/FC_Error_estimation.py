@@ -44,6 +44,14 @@ class RelativeMSELoss(nn.Module):
         normalizer = th.mean(th.square(true))
         return loss/normalizer
     
+class RMSELoss(nn.Module):
+    # Custom loss function that computes the root mean squared error between the predicted and true values
+    def __init__(self):
+        super(RMSELoss, self).__init__()
+
+    def forward(self, pred, true):
+        return th.sqrt(th.mean(th.square(pred - true)))
+    
 class MixedLoss(nn.Module):
     # Custom loss function that computes the weighted sum between the root mean squared error and the maximum absolute error
     def __init__(self):
@@ -79,31 +87,17 @@ class Data(Dataset):
         except FileNotFoundError:
             self.high_3D = np.load(f'{self.data_dir}/HighResPoints_normalized.npy')
 
-        self.data = self.coarse_3D.reshape(self.coarse_3D.shape[0], -1)
+        self.max_data = np.max(self.coarse_3D) #, axis=2)
+        self.min_data = np.min(self.coarse_3D) #, axis=2)
+        self.data = (self.coarse_3D - self.min_data)/(self.max_data - self.min_data)
+        self.data = self.data.reshape(self.data.shape[0], -1)
+        print(f"Data shape: {self.data.shape}")
         self.labels = self.high_3D - self.coarse_3D
         self.labels = self.labels.reshape(self.labels.shape[0], -1)
         
         self.output_size = self.labels.shape[1]
         self.input_size = self.data.shape[1]
 
-
-
-    def pooling_3D(self, displacement, low_resh_shape=None):
-        if low_resh_shape is None:
-            low_resh_shape = displacement.shape[1]//2, displacement.shape[2]//2, displacement.shape[3]
-        y, x, z = low_resh_shape
-        pool = np.zeros((displacement.shape[0], y, x, z))
-
-        for i in range(displacement.shape[0]):
-            for j in range(y):
-                for k in range(x):
-                    # check if the point is on the boundary
-                    if k == 0:
-                        pool[i, j, k] = displacement[i, 2*j, 2*k]
-                    else:
-                        pool[i, j, k] = np.mean(displacement[i, 2*j:2*j+2, 2*k:2*k+2], axis=(0, 1))
-        
-        return pool
     
     def __len__(self):
         return len(self.data)
@@ -146,25 +140,25 @@ class Trainer:
         self.lr = lr
         self.epochs = epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
-        self.train_data, self.val_data, input_size, output_size, self.normalized = self.load_data()
+        self.train_data, self.val_data, input_size, output_size, self.min_data, self.max_data = self.load_data()
         print(f"Input size: {input_size}, Output size: {output_size}")
         self.train_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False)
         self.model = FullyConnected(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-        self.criterion = MixedLoss()
+        self.criterion = RMSELoss()
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=10, min_lr=1e-8)
         
     
     def load_data(self):
         data = Data(self.data_dir)
         train_data, val_data = train_test_split(data, test_size=0.2)
-        return train_data, val_data, data.input_size, data.output_size, data.normalized
+        return train_data, val_data, data.input_size, data.output_size, data.min_data, data.max_data
     
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=40, min_delta=0.000001, lr=self.lr)
+        early_stopper = EarlyStopper(patience=40, min_delta=1e-9, lr=self.lr)
         for epoch in range(self.epochs):
             running_loss = 0.0
             for i, data in enumerate(tqdm(self.train_loader)):
@@ -201,8 +195,6 @@ class Trainer:
     def save_model(self, model_dir):
         if not os.path.exists('models'):
             os.mkdir('models')
-        if self.normalized:
-            model_dir = f'models/{model_dir}_normalized.pth'
         else:
             model_dir = f'models/{model_dir}.pth'
         th.save(self.model.state_dict(), model_dir)
@@ -214,15 +206,16 @@ class Trainer:
     def predict(self, input_data):
         self.model.eval()
         with th.no_grad():
+            input_data = (input_data - self.min_data)/(self.max_data - self.min_data)
             input_data = th.tensor(input_data).to(self.device)
             output = self.model(input_data.float())
         return output
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_gmsh/2024-08-09_11:36:13_symmetric/train'
+    data_dir = 'npy_beam/2024-08-12_17:11:01_symmetric/train'
 
-    trainer = Trainer(data_dir, 32, 0.001, 500)
+    trainer = Trainer(data_dir, 32, 0.001, 100)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     trainer.save_model(f'model_{training_time}')
