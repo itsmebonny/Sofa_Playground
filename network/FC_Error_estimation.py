@@ -118,7 +118,10 @@ class Data(Dataset):
         print(f"Data shape: {self.data.shape}")
         self.labels = self.high_3D - self.coarse_3D
         self.labels = self.labels.reshape(self.labels.shape[0], -1)
-        self.min_labels = np.min(np.abs(self.labels))
+        #find the minimum non-zero value in the labels
+        self.min_labels = np.min(np.abs(self.labels[np.nonzero(self.labels)]))
+        print(f"Min labels: {self.min_labels}")
+        print(f"Max labels: {np.max(self.labels)}")
         
         self.output_size = self.labels.shape[1]
         self.input_size = self.data.shape[1]
@@ -166,7 +169,8 @@ class Trainer:
         self.epochs = epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.train_data, self.val_data, input_size, output_size, self.min_data, self.max_data, self.min_labels = self.load_data()
-        self.min_labels = 1e-10
+        
+        # self.min_labels = 1e-10
         print(f"Input size: {input_size}, Output size: {output_size}")
         self.train_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False)
