@@ -39,7 +39,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.network = Trainer('npy_beam/2024-07-23_09:23:48_estimation/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-08-06_16:04:33_beam.pth') # efficient noisy
+        self.network.load_model('models/model_2024-08-14_16:19:35_estimation_symlog.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -279,29 +279,11 @@ class AnimationStepController(Sofa.Core.Controller):
         # coarse_pos = coarse_pos[:, :2]
         # print("Coarse position shape: ", coarse_pos.shape)
         inputs = np.reshape(coarse_pos, -1)
-        if self.network.normalized:
-            scaler = MinMaxScaler()
-            inputs = scaler.fit_transform(inputs)
-
-        # self.noises = [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05]
-        # self.errs = []
-        # for i in self.noises:
-        #     print(f"Adding noise: {i}")
-        #     self.MO_training.position.value = coarse_pos + self.MO_training.rest_position.value
-        #     # add noise to the input
-        #     noise = np.random.normal(0, i, inputs.shape)
-        #     noisy_inputs = inputs + noise
+        
 
 
         U = self.network.predict(inputs).cpu().numpy()
-        if self.network.normalized:
-            U = scaler.inverse_transform(U)
-        # print("Predicted displacement: ", U.shape)
-        # print("Low res shape: ", self.low_res_shape)
-        # reshape U to have the same shape as the position
-        # add the z component
 
-        
 
         U = np.reshape(U, (self.low_res_shape[0], self.low_res_shape[1]))
         # U = np.append(U, np.zeros((self.high_res_shape[0], 1)), axis=1)

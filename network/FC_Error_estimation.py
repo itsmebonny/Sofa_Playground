@@ -68,6 +68,30 @@ class MixedLoss(nn.Module):
             loss1 = th.sqrt(th.mean(th.square(pred - true)))
             loss2 = th.max(th.abs(pred - true))
             return 0.7*loss1 + 0.3*loss2
+        
+class ScaleInvariantLoss(nn.Module):
+    # Custom loss function that is scale invariant
+    def __init__(self, slope=1e-5):
+        super(ScaleInvariantLoss, self).__init__()
+        self.slope = slope
+
+    def symlog(self, x, slope=1e-5):
+        return th.sign(x) * th.log10(th.tensor(1, dtype=th.float32)+ th.abs(x)/th.tensor(slope, dtype=th.float32))
+    
+    def forward(self,pred, true):
+    # Compute the differences di
+        d = self.symlog(pred) - self.symlog(true)
+        
+        # Calculate the first term: (1/n) * sum(di^2)
+        term1 = th.mean(th.square(d))
+        
+        # # Calculate the second term: (1/n^2) * (sum(di))^2
+        # term2 = th.square(th.sum(d)) / th.square(len(d))
+
+        # # Compute the final metric D(pred, true)
+        # D = 0.7*term1 - 0.3*term2
+        
+        return term1
     
 
 class Data(Dataset):
@@ -94,6 +118,7 @@ class Data(Dataset):
         print(f"Data shape: {self.data.shape}")
         self.labels = self.high_3D - self.coarse_3D
         self.labels = self.labels.reshape(self.labels.shape[0], -1)
+        self.min_labels = np.min(np.abs(self.labels))
         
         self.output_size = self.labels.shape[1]
         self.input_size = self.data.shape[1]
@@ -140,21 +165,22 @@ class Trainer:
         self.lr = lr
         self.epochs = epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
-        self.train_data, self.val_data, input_size, output_size, self.min_data, self.max_data = self.load_data()
+        self.train_data, self.val_data, input_size, output_size, self.min_data, self.max_data, self.min_labels = self.load_data()
+        self.min_labels = 1e-10
         print(f"Input size: {input_size}, Output size: {output_size}")
         self.train_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data, batch_size=self.batch_size, shuffle=False)
         self.model = FullyConnected(input_size, output_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-        self.criterion = RMSELoss()
+        self.criterion = ScaleInvariantLoss(slope=self.min_labels)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=10, min_lr=1e-8)
         
     
     def load_data(self):
         data = Data(self.data_dir)
         train_data, val_data = train_test_split(data, test_size=0.2)
-        return train_data, val_data, data.input_size, data.output_size, data.min_data, data.max_data
+        return train_data, val_data, data.input_size, data.output_size, data.min_data, data.max_data, data.min_labels
     
     def train(self):
         self.model.train()
@@ -209,16 +235,21 @@ class Trainer:
             input_data = (input_data - self.min_data)/(self.max_data - self.min_data)
             input_data = th.tensor(input_data).to(self.device)
             output = self.model(input_data.float())
+            #output = th.sgn(output) * th.tensor(self.min_labels, dtype=th.float32) * (-th.tensor(1, dtype=th.float32)+th.pow(th.tensor(10, dtype=th.float32), th.abs(output)))
         return output
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_beam/2024-08-12_17:11:01_symmetric/train'
+    data_dir = 'npy_beam/2024-08-07_16:39:32_estimation/train'
 
     trainer = Trainer(data_dir, 32, 0.001, 100)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}')
+    if data_dir.split('/')[-2].split('_')[-1] == 'estimation':
+        training_time = training_time + '_estimation'
+    elif data_dir.split('/')[-2].split('_')[-1] == 'symmetric':
+        training_time = training_time + '_symmetric'
+    trainer.save_model(f'model_{training_time}_symlog')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

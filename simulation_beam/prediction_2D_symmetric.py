@@ -36,10 +36,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
         self.RRMSE_error, self.RRMSE_deformation = [], []
-        self.network = Trainer('npy_beam/2024-07-23_09:23:48_estimation/train', 32, 0.001, 500)
+        self.network = Trainer('npy_beam/2024-08-12_17:11:01_symmetric/train', 32, 0.001, 500)
         # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
         # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-08-13_17:44:19_symm.pth') # efficient noisy
+        self.network.load_model('models/model_2024-08-14_15:07:58_symmetric_symlog.pth') # efficient noisy
 
     def createGraph(self, rootNode):
 
@@ -102,7 +102,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
         self.exactSolution.addChild("visual")
-        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1')
+        self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 0.8')
         self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
         # same object with different resolution
@@ -126,7 +126,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
         #self.MO1_LR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
         self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
-        self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
+        self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1 0.9')
 
 
         # self.trained_nodes = rootNode.addChild('SparseCoarseMesh')
