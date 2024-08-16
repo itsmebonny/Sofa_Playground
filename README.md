@@ -21,3 +21,17 @@
 - In the `network/XXX_Error_estimation.py` scripts, the class `ScaleInvariantLoss` is used as the loss function. This loss is custom made by creating a synthetic symmetric logarithm function and then computing the mean squared error between the logarithm of the prediction and the logarithm of the target.
 - The interesting simulation scripts are either called `xxx_topology_free.py` or `xxx_symmetric.py`. The first one is used to generate the data from a cantilever beam fixed at one end and free at the other. The second one is used to generate the data from a cantilever beam fixed in the middle with a symmetric load applied at the free ends.
 - There is a whole section about Graph Neural Network for the dynamic case but at the moment it is not working properly. The best result on that end are found in the `data_management/GNN_testing.ipynb` notebook.
+
+## Data and Models
+
+The data and models are not included in this repository. Drop me an email if you want to have access to them. I will send you a link to download them. After downloading the data and models, the structure of the folder should be similar to the following:
+
+```bash
+root folder
+│   README.md
+│---npy_gmsh
+│---models
+│---npy_beam
+│---npy_liver
+│---the other folders
+```
