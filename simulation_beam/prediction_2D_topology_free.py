@@ -1,5 +1,4 @@
-from httplib2 import ProxiesUnavailableError
-from pyparsing import rest_of_line
+
 import Sofa
 import SofaRuntime
 import numpy as np 
@@ -13,13 +12,11 @@ from parameters_2D import p_grid, p_grid_LR
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
-from network.fully_connected_2D import Trainer as Trainer2D
 from network.FC_Error_estimation import Trainer as Trainer
 from parameters_2D import p_grid, p_grid_LR, p_grid_test
 
 from scipy.interpolate import RBFInterpolator, griddata
 
-import SofaCaribou
 #SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
 
 np.random.seed(42)

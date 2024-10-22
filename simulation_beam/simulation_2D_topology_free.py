@@ -10,10 +10,7 @@ from parameters_2D import p_grid, p_grid_LR
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
-from network.fully_connected import Trainer
 
-import SofaCaribou
-SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
 
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
@@ -26,7 +23,6 @@ class AnimationStepController(Sofa.Core.Controller):
     def createGraph(self, rootNode):
 
         rootNode.addObject('RequiredPlugin', name='MultiThreading')
-        rootNode.addObject('RequiredPlugin', name='SofaCaribou')
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Projective') # Needed to use components [FixedProjectiveConstraint]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Engine.Select') # Needed to use components [BoxROI]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.LinearSolver.Iterative') # Needed to use components [CGLinearSolver]  

@@ -14,7 +14,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
 from parameters_2D import p_grid, p_grid_LR
 
-SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
+
+########################################
+# MUST FIX TO WORK IN STATIC SIMULATION#
+########################################
 
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
