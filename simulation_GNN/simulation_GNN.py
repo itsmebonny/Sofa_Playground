@@ -34,7 +34,6 @@ class AnimationStepController(Sofa.Core.Controller):
     def createGraph(self, rootNode):
 
         rootNode.addObject('RequiredPlugin', name='MultiThreading')
-        rootNode.addObject('RequiredPlugin', name='SofaCaribou')
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Projective') # Needed to use components [FixedProjectiveConstraint]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Engine.Select') # Needed to use components [BoxROI]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.LinearSolver.Iterative') # Needed to use components [CGLinearSolver]  
@@ -60,16 +59,16 @@ class AnimationStepController(Sofa.Core.Controller):
         self.exactSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_1166.msh')
         self.surface_topo = self.exactSolution.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        self.exactSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@triangleTopo")
-        self.exactSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
-        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
+        # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
+        self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
+        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
         self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -0.1 10.1 1.1 0.1")
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.coarse = self.exactSolution.addChild('CoarseMesh')
-        self.ExactTopo = self.coarse.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
+        self.coarse.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
         self.coarse.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
         self.MO1_LR = self.coarse.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
         self.coarse.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
@@ -86,9 +85,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution.addObject('MeshGmshLoader', name='grid', filename='mesh/rectangle_75.msh')
         self.surface_topo_LR = self.LowResSolution.addObject('TriangleSetTopologyContainer', name='quadTopo', src='@grid')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
-        self.LowResSolution.addObject('MeshMatrixMass', totalMass=self.object_mass, name="SparseMass", topology="@quadTopo")
-        self.LowResSolution.addObject('EulerImplicitSolver', name="ODEsolver", rayleighStiffness=0, rayleighMass=0)
-        self.LowResSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-8", threshold="1.0e-8") 
+        # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
+        self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
+        self.LowResSolution.addObject('CGLinearSolver', iterations=500, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -96,109 +95,135 @@ class AnimationStepController(Sofa.Core.Controller):
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.trained_nodes = self.LowResSolution.addChild('CoarseMesh')
-        self.LowResTopo = self.trained_nodes.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
+        self.trained_nodes.addObject('RegularGridTopology', name='coarseGrid', min=p_grid_LR.min, max=p_grid_LR.max, nx=p_grid_LR.res[0], ny=p_grid_LR.res[1], nz=p_grid_LR.res[2])
         self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopo', src='@coarseGrid')
         self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFs', template='Vec3d', src='@coarseGrid')
         self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
         self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
 
         self.LowResSolution.addChild("visual")
-        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
+        self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
-
-        self.LowResSolution.addChild("visual_noncorrected")
-        self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../grid', color='0 1 0 0.5')
-        self.LowResSolution.visual_noncorrected.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
         self.nb_nodes = len(self.MO1.position.value)
         self.nb_nodes_LR = len(self.MO1_LR.position.value)
-
-        self.high_res_shape = np.array((p_grid.nb_nodes, 3))
-        self.low_res_shape = np.array((p_grid_LR.nb_nodes, 3))
 
 
     def onSimulationInitDoneEvent(self, event):
         """
         Called within the Sofa pipeline at the end of the scene graph initialisation.
         """
-        print("Simulation initialized.")
-        print("High resolution shape: ", self.high_res_shape)
-        print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
         self.save = False
-        self.start_time = 0
-        self.count = 0
-        self.inside_counter = 0
-        self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-        self.directory =  self.directory + "_dynamic_simulation"
         self.efficient_sampling = False
-        self.magnitudes = np.linspace(10, 40, 20)
-        self.angles = np.linspace(0, 2*np.pi, 30)
-        self.count_angle = 0
-        self.count_magnitude = 0
-        self.vector = np.array([np.cos(self.angles[0]), np.sin(self.angles[0]), 0])
-        self.versor = self.vector / np.linalg.norm(self.vector)
-        self.magnitude = self.magnitudes[0]
-        self.externalForce = self.magnitude * self.versor
-        self.count_angle += 1
-        self.count_magnitude += 1
+        if self.efficient_sampling:
+            self.count_v = 0
+            self.num_versors = 5
+            self.versors = self.generate_versors(self.num_versors)
+            self.magnitudes = np.linspace(0, 40, 30)
+            self.count_m = 0
+            self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
+            self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
         if self.save:
-            if not os.path.exists('npy_GNN'):
-                os.mkdir('npy_GNN')
+            if not os.path.exists('npy_gmsh'):
+                os.mkdir('npy_gmsh')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-            self.directory = self.directory + "_dynamic"
-            os.makedirs(f'npy_GNN/{self.directory}')
-            print(f"Saving data to npy_GNN/{self.directory}")
+            self.directory = self.directory + "_estimation"
+            if self.efficient_sampling:
+                self.directory = self.directory + "_efficient"
+            os.makedirs(f'npy_gmsh/{self.directory}')
+            print(f"Saving data to npy_gmsh/{self.directory}")
         self.sampled = False
 
+        surface = self.surface_topo
+        surface_LR = self.surface_topo_LR
+
+        self.idx_surface = surface.triangles.value.reshape(-1)
+        self.idx_surface_LR = surface_LR.triangles.value.reshape(-1)
 
 
     def onAnimateBeginEvent(self, event):
-
-        
-
+    
+        self.bad_sample = False
+        # reset positions
+        self.MO1.position.value = self.MO1.rest_position.value
+        self.MO2.position.value = self.MO2.rest_position.value
         if self.sampled:
             print("================== Sampled all magnitudes and versors ==================\n")
             print ("================== The simulation is over ==================\n")
-            self.close()
-        if self.count % 1000 == 0:
-            print(f"================== Time step {self.count} ==================")
-            self.MO1.position.value = self.MO1.rest_position.value
-            self.MO2.position.value = self.MO2.rest_position.value
-            if not self.efficient_sampling:
-                self.angle = np.random.uniform(0, 2*np.pi)
-                self.vector = np.array([np.cos(self.angle), np.sin(self.angle)])
-                self.versor = self.vector / np.linalg.norm(self.vector)
-                self.magnitude = np.random.uniform(10, 20)
-                self.externalForce = np.append(self.magnitude * self.versor, 0)
-                print("Random external force: ", self.externalForce)
-            else:
-                self.magnitude = self.magnitudes[self.count_magnitude % len(self.magnitudes)]
-                self.vector = np.array([np.cos(self.angles[self.count_angle % len(self.angles)]), np.sin(self.angles[self.count_angle % len(self.angles)]), 0])
-                self.versor = self.vector / np.linalg.norm(self.vector)
-                self.externalForce = self.magnitude * self.versor
-                self.count_angle += 1
-                if self.count_angle % len(self.angles) == 0:
-                    self.count_magnitude += 1
-                    if self.count_magnitude % len(self.magnitudes) == 0:
-                        self.sampled = True
-                        print("Sampled all magnitudes and versors")
-                        print("The simulation is over")
+        
+        if not self.efficient_sampling:
+            self.theta = np.random.uniform(0, 2*np.pi)
+            self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
+            self.magnitude = np.random.uniform(0, 70)
+            self.externalForce = np.append(self.magnitude * self.versor, 0)
+        else:
+            self.sample = self.count_m *self.num_versors + self.count_v
+            self.externalForce = np.append(self.magnitudes[self.count_m] * self.versors[self.count_v], 0)
+            
+            self.count_v += 1
+            if self.count_v == len(self.versors):
+                self.count_v = 0
+                self.count_m += 1
+                self.versors = self.generate_versors(self.num_versors, starting_point=self.starting_points[self.count_m])
+            if self.count_m == len(self.magnitudes):
+                self.count_m = 0
+                self.count_v = 0
+                self.sampled = True
+
+       # Define random box
+        side = np.random.randint(1, 4)
+        if side == 2:
+            x_min = 9.99
+            x_max = 10.01
+            y_min = np.random.uniform(-1.01, 0.0)
+            y_max = y_min + 1
+        elif side == 3:
+            y_min = -1.01
+            y_max = -0.99
+            x_min = np.random.uniform(2.0, 9.0)
+            x_max = x_min + 1
+        else:
+            x_min = np.random.uniform(2.0, 9.0)
+            x_max = x_min + 1
+            y_min = 0.99
+            y_max = 1.01
         
 
+        # Set the new bounding box
+        self.exactSolution.removeObject(self.cff_box)
+        self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1,
+                                            box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+        self.cff_box.init()
 
-            self.exactSolution.removeObject(self.cff)
-            self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-            self.cff.init()
+        self.LowResSolution.removeObject(self.cff_box_LR)
+        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1,
+                                            box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+        self.cff_box_LR.init()
+
+        # Get the intersection with the surface
+        indices = list(self.cff_box.indices.value)
+        indices = list(set(indices).intersection(set(self.idx_surface)))
+        print(f"Number of nodes in the high resolution solution: {len(indices)}")
+        indices_LR = list(self.cff_box_LR.indices.value)
+        indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
+        print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
+        self.exactSolution.removeObject(self.cff)
+        self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+        self.cff.init()
 
 
-            self.LowResSolution.removeObject(self.cffLR)
-            self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
-            self.cffLR.init()
+        self.LowResSolution.removeObject(self.cffLR)
+        self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
+        self.cffLR.init()
 
-        
+        print(f"Bounding box: [{x_min}, {y_min}, {x_max}, {y_max}]")
+        print(f"Side: {side}")
+        if indices_LR == [] or indices == []:
+            print("Empty intersection")
+            self.bad_sample = True
         self.start_time = process_time()
 
 
