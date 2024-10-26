@@ -1,6 +1,4 @@
-from platform import node
-import time
-from cv2 import normalize
+
 import numpy as np 
 import torch as th
 import torch.nn as nn
@@ -39,7 +37,7 @@ from torch_geometric.loader import DataLoader
 class Net(th.nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = GCNConv(7, 16)
+        self.conv1 = GCNConv(6, 16)
         self.conv_mid = GCNConv(16, 16)
         self.conv2 = GCNConv(16, 3)
         self.repeat = 5
@@ -52,12 +50,12 @@ class Net(th.nn.Module):
         x = F.relu(x)
         for i in range(self.repeat):
             x = self.conv_mid(x, edge_index, edge_attr)
-            x = F.relu(x)
+            x = F.gelu(x)
         x = self.conv2(x, edge_index, edge_attr)
         x = F.relu(x)
         x = x.view(-1, 225)
-        x = th.sin(self.linear1(x))
-        x = th.sin(self.linear2(x))
+        x = F.gelu(self.linear1(x))
+        x = F.gelu(self.linear2(x))
         x = self.linear3(x)
         return x
     
@@ -123,19 +121,21 @@ class DataGraph(Dataset):
     
     def create_data_list(directory):
         names = DataGraph.get_filenames(directory)
+        print(f"Number of FILES: {len(names)}")
         names_no_time = DataGraph.get_filenames_no_time(directory)
         types = len(set(names_no_time))
+        print(f"Number of TYPES: {types}")
         samples = len(names) // types
         data_list = []
         for i in range(samples):
             high_res_displacement = np.load(f"{directory}/{names[samples*3+i]}")
             low_res_displacement = np.load(f"{directory}/{names[i]}")
-            timestep = names[i].split("_")[6]
-            timestep = timestep.split(".")[0]
-            timestep_nodes = (int(timestep) % 1000) * np.ones((75, 1))
+            # timestep = names[i].split("_")[6]
+            # timestep = timestep.split(".")[0]
+            # timestep_nodes = (int(timestep) % 1000) * np.ones((75, 1))
             high_res_velocity = np.load(f"{directory}/{names[samples*4+i]}")
             low_res_velocity = np.load(f"{directory}/{names[samples*5+i]}")
-            node_features = np.hstack((low_res_displacement, low_res_velocity, timestep_nodes))
+            node_features = np.hstack((low_res_displacement, low_res_velocity))#, timestep_nodes))
             #node_features = low_res_velocity
             edge_index = np.load(f"{directory}/{names[samples*2+i]}")[:, :2].T
             edge_attr = np.load(f"{directory}/{names[samples*2+i]}")[:, 2]
@@ -183,7 +183,7 @@ class Trainer:
         foo = 1
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.data_graph = DataGraph(self.data_dir)
-        self.validation_dir = 'npy_GNN/2024-08-08_14:35:35_dynamic'
+        self.validation_dir = 'npy_GNN/2024-10-24_17:46:55_estimation'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
@@ -250,7 +250,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN/2024-10-24_16:59:01_estimation'
+    data_dir = 'npy_GNN/2024-10-24_17:46:55_estimation'
     trainer = Trainer(data_dir, 16, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')

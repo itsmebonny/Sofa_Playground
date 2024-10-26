@@ -115,7 +115,7 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
@@ -126,15 +126,15 @@ class AnimationStepController(Sofa.Core.Controller):
             self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
             self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
         if self.save:
-            if not os.path.exists('npy_gmsh'):
-                os.mkdir('npy_gmsh')
+            if not os.path.exists('npy_GNN'):
+                os.mkdir('npy_GNN')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
             self.directory = self.directory + "_estimation"
             if self.efficient_sampling:
                 self.directory = self.directory + "_efficient"
-            os.makedirs(f'npy_gmsh/{self.directory}')
-            print(f"Saving data to npy_gmsh/{self.directory}")
+            os.makedirs(f'npy_GNN/{self.directory}')
+            print(f"Saving data to npy_GNN/{self.directory}")
         self.sampled = False
 
         surface = self.surface_topo
@@ -237,39 +237,36 @@ class AnimationStepController(Sofa.Core.Controller):
         U_low = self.compute_displacement(self.MO_training)
         vel_high = self.compute_velocity(self.MO1_LR)
         vel_low = self.compute_velocity(self.MO_training)
-        edges_high = self.compute_edges(self.ExactTopo)
-        edges_low = self.compute_edges(self.LowResTopo)
+        edges_high = self.compute_edges(self.surface_topo)
+        edges_low = self.compute_edges(self.surface_topo_LR)
         print(f"Max displacement high resolution: {np.max(np.abs(U_test))}")
         print(f"Displacement: {U_high[44]}")
         # cut the z component
         # U_high = U_high[:, :2]
             # U_low = U_low[:, :2]
-        if self.count % 10 == 0 and not self.sampled:
-            print(f"============================================ Saving data for timestep {self.count} ===========================================")
-            if self.save and not self.efficient_sampling:    
-                np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(U_high))
-                np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(U_low))
-                np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(edges_high))
-                np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(edges_low))
-                np.save(f'npy_GNN/{self.directory}/VelHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(vel_high))
-                np.save(f'npy_GNN/{self.directory}/VelLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}_{self.count}.npy', np.array(vel_low))
-               
-            elif self.save and self.efficient_sampling:
-                np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(U_high))
-                np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(U_low))
-                np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(edges_high))
-                np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(edges_low))
-                np.save(f'npy_GNN/{self.directory}/VelHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(vel_high))
-                np.save(f'npy_GNN/{self.directory}/VelLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}_{self.count}.npy', np.array(vel_low))
-               
-            else:
-                pass
-                # print("High resolution displacement:\n", U_high[:3])
-                # print("Low resolution displacement:\n", U_low[:3])
-                # print("Edges:\n", edges_high[:3])
-                # print("Edges:\n", edges_low[:3])
-        self.count += 1
-
+    
+        if self.save and not self.efficient_sampling:    
+            np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
+            np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
+            np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(edges_high))
+            np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(edges_low))
+            np.save(f'npy_GNN/{self.directory}/VelHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(vel_high))
+            np.save(f'npy_GNN/{self.directory}/VelLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(vel_low))
+            
+        elif self.save and self.efficient_sampling:
+            np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(U_high))
+            np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(U_low))
+            np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(edges_high))
+            np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(edges_low))
+            np.save(f'npy_GNN/{self.directory}/VelHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(vel_high))
+            np.save(f'npy_GNN/{self.directory}/VelLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(vel_low))
+            
+        else:
+            pass
+            # print("High resolution displacement:\n", U_high[:3])
+            # print("Low resolution displacement:\n", U_low[:3])
+            # print("Edges:\n", edges_high[:3])
+            # print("Edges:\n", edges_low[:3])
 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
