@@ -37,27 +37,24 @@ from torch_geometric.loader import DataLoader
 class Net(th.nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = GCNConv(3, 16)
-        self.conv_mid = GCNConv(16, 16)
-        self.conv2 = GCNConv(16, 3)
-        self.repeat = 5
-        self.linear1 = th.nn.Linear(225, 512)
-        self.linear2 = th.nn.Linear(512, 512)
-        self.linear3 = th.nn.Linear(512, 225)
-
-    def forward(self, x, edge_index, edge_attr):
-        x = self.conv1(x, edge_index, edge_attr)
-        x = F.relu(x)
-        for i in range(self.repeat):
-            x = self.conv_mid(x, edge_index, edge_attr)
-            x = F.gelu(x)
-        x = self.conv2(x, edge_index, edge_attr)
-        x = F.relu(x)
-        x = x.view(-1, 225)
-        x = F.gelu(self.linear1(x))
-        x = F.gelu(self.linear2(x))
-        x = self.linear3(x)
+        self.lin1 = th.nn.Linear(225, 512)
+        self.lin2 = th.nn.Linear(512, 256)
+        self.lin3 = th.nn.Linear(256, 128)
+        self.lin4 = th.nn.Linear(128, 225)
+        self.relu = th.nn.ReLU()
+        self.dropout = th.nn.Dropout(0.25)
+    
+    def forward(self, x):
+        x = self.lin1(x)
+        x = self.relu(x)
+        x = self.lin2(x)
+        x = self.relu(x)
+        x = self.lin3(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.lin4(x)
         return x
+    
     
 
     
@@ -137,15 +134,11 @@ class DataGraph(Dataset):
             low_res_velocity = np.load(f"{directory}/{names[samples*5+i]}")
             node_features = low_res_displacement #np.hstack((low_res_displacement))#, low_res_velocity, timestep_nodes))
             #node_features = low_res_velocity
-            edge_index = np.load(f"{directory}/{names[samples*2+i]}")[:, :2].T
-            edge_attr = np.load(f"{directory}/{names[samples*2+i]}")[:, 2]
+            # edge_index = np.load(f"{directory}/{names[samples*2+i]}")[:, :2].T
+            # edge_attr = np.load(f"{directory}/{names[samples*2+i]}")[:, 2]
             y = high_res_displacement - low_res_displacement
             y = y.flatten()
-            y = y
-            # y = high_res_velocity - low_res_velocity
-            # y = y.flatten()
-            data = Data(x=th.tensor(node_features, dtype=th.float32), edge_index=th.tensor(edge_index, dtype=th.long), edge_attr=th.tensor(edge_attr, dtype=th.float32), y=th.tensor(y, dtype=th.float32))
-            data_list.append(data)
+            data_list.append([node_features, y])
         return data_list
 
     

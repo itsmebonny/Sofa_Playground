@@ -11,43 +11,36 @@ from parameters_2D import p_grid, p_grid_LR
 
 import sys
 
-from simulation import prediction_2D_multimesh
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
 print(sys.path)
 
-
-
-from network.fully_connected_2D import Trainer as Trainer2D
-from network.FC_Error_estimation import Trainer as Trainer
-from parameters_2D import p_grid, p_grid_LR, p_grid_test
+from network.GNN_Error_estimation import Trainer as Trainer
+from parameters_2D import p_grid, p_grid_LR
+from torch_geometric.data import Data
 
 from scipy.interpolate import RBFInterpolator, griddata
 
-import SofaCaribou
-SofaRuntime.PluginRepository.addFirstPath(os.environ['CARIBOU_ROOT'])
 
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
-        self.externalForce = [0, -10, 0]
+        self.externalForce = [0, 30, 0]
+        self.object_mass = 0.5
         self.createGraph(node)
         self.root = node
         self.save = False
-        self.save_for_images = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
-        self.RRMSE_error, self.RRMSE_deformation = [], []
-        self.network = Trainer('npy_gmsh/2024-07-19_13:59:21_estimation/train', 32, 0.001, 500)
-        # self.network.load_model('models/model_2024-05-22_10:25:12.pth') # efficient
-        # self.network.load_model('models/model_2024-05-21_14:58:44.pth') # not efficient
-        self.network.load_model('models/model_2024-07-23_16:05:44.pth') # efficient noisy
+        self.save_for_images = False
 
+        self.network = Trainer('npy_GNN/2024-10-24_17:46:55_estimation', 16, 0.001, 500)
+        self.network.load_model('models_GNN/model_2024-10-30_00:39:31_GNN_velocity_broken.pth')
+        
     def createGraph(self, rootNode):
 
         rootNode.addObject('RequiredPlugin', name='MultiThreading')
-        rootNode.addObject('RequiredPlugin', name='SofaCaribou')
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Projective') # Needed to use components [FixedProjectiveConstraint]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Engine.Select') # Needed to use components [BoxROI]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.LinearSolver.Iterative') # Needed to use components [CGLinearSolver]  
@@ -61,7 +54,6 @@ class AnimationStepController(Sofa.Core.Controller):
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Dynamic') # Needed to use components [TriangleSetTopologyContainer]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Grid') # Needed to use components [RegularGridTopology]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Visual') # Needed to use components [VisualStyle]  
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.IO.Mesh') # Needed to use components [MeshGmshLoader]
 
         rootNode.addObject('DefaultAnimationLoop')
         rootNode.addObject('DefaultVisualManagerLoop') 
@@ -120,16 +112,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
         self.LowResSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
-        self.LowResSolution.addChild("visual_noncorrected")
-        self.LowResSolution.visual_noncorrected.addObject('OglModel', src='@../grid', color='0 1 0 0.5')
-        self.LowResSolution.visual_noncorrected.addObject('IdentityMapping', input='@../DOFs', output='@./')
-
+        self.low_res_shape = (p_grid_LR.res[0]*p_grid_LR.res[1], 3)
+        self.high_res_shape = (p_grid.res[0]*p_grid.res[1], 3)
 
         self.nb_nodes = len(self.MO1.position.value)
         self.nb_nodes_LR = len(self.MO1_LR.position.value)
-
-        self.high_res_shape = np.array((p_grid.nb_nodes, 3))
-        self.low_res_shape = np.array((p_grid_LR.nb_nodes, 3))
 
 
     def onSimulationInitDoneEvent(self, event):
@@ -138,8 +125,6 @@ class AnimationStepController(Sofa.Core.Controller):
         """
 
         print("Simulation initialized.")
-        print("High resolution shape: ", self.high_res_shape)
-        print("Low resolution shape: ", self.low_res_shape)
         self.inputs = []
         self.outputs = []
         self.save = False
@@ -228,34 +213,29 @@ class AnimationStepController(Sofa.Core.Controller):
     def onAnimateEndEvent(self, event):
         
 
-        coarse_pos = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
-        
-        #print("Coarse position: ", coarse_pos.shape)
-        # cut the z component
-        # coarse_pos = coarse_pos[:, :2]
-        # print("Coarse position shape: ", coarse_pos.shape)
-        inputs = np.reshape(coarse_pos, -1)
-        if self.network.normalized:
-            scaler = MinMaxScaler()
-            inputs = scaler.fit_transform(inputs)
-
-        # self.noises = [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05]
-        # self.errs = []
-        # for i in self.noises:
-        #     print(f"Adding noise: {i}")
-        #     self.MO_training.position.value = coarse_pos + self.MO_training.rest_position.value
-        #     # add noise to the input
-        #     noise = np.random.normal(0, i, inputs.shape)
-        #     noisy_inputs = inputs + noise
+        self.end_time = process_time()
+        print("Computation time for 1 time step: ", self.end_time - self.start_time)
+        print("External force: ", np.linalg.norm(self.externalForce))
+        U_high = self.compute_displacement(self.MO1_LR)
+        U_test = self.compute_displacement(self.MO1)
+        U_low = self.compute_displacement(self.MO_training)
+        vel_high = self.compute_velocity(self.MO1_LR)
+        vel_low = self.compute_velocity(self.MO_training)
+        edges_high = self.compute_edges(self.surface_topo)
+        edges_low = self.compute_edges(self.surface_topo_LR)
+        print(f"Max displacement high resolution: {np.max(np.abs(U_test))}")
+        print(f"Displacement: {U_high[44]}")
 
 
-        U = self.network.predict(inputs).cpu().numpy()
-        if self.network.normalized:
-            U = scaler.inverse_transform(U)
-        # print("Predicted displacement: ", U.shape)
-        # print("Low res shape: ", self.low_res_shape)
-        # reshape U to have the same shape as the position
-        # add the z component
+        node_features = U_low
+        edge_index = edges_low[:, :2].T
+        edge_attr = edges_low[:, 2]
+        data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_attr)
+
+
+
+        U = self.network.predict(data).cpu().numpy()
+  
 
         
 
@@ -352,17 +332,53 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_error.append(np.sqrt((error.T @ error) / error.shape[0]))
         self.RMSE_deformation.append(np.sqrt((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0] ))
 
-        #ADD Relative RMSE
-        self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
+        # #ADD Relative RMSE
+        # self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
         U = mechanical_object.position.value.copy() - mechanical_object.rest_position.value.copy()
         return U
     
+    def compute_velocity(self, mechanical_object):
+        # Compute the velocity of the high resolution solution
+        return mechanical_object.velocity.value.copy()
+    
+
     def compute_rest_position(self, mechanical_object):
         # Compute the position of the high resolution solution
         return mechanical_object.rest_position.value.copy()
+    
+    def compute_edges(self, grid):
+        # create a matrix with the edges of the grid and their length
+        edges = grid.edges.value.copy()
+        positions = grid.position.value.copy()
+        matrix = np.zeros((len(edges)*2, 3))
+        for i, edge in enumerate(edges):
+            # account for the fact the edges must be bidirectional
+            matrix[len(edges) + i, 0] = edge[1]
+            matrix[len(edges) + i, 1] = edge[0]
+            matrix[len(edges) + i, 2] = np.linalg.norm(positions[edge[0]] - positions[edge[1]])
+            matrix[i, 0] = edge[0]
+            matrix[i, 1] = edge[1]
+            matrix[i, 2] = np.linalg.norm(positions[edge[0]] - positions[edge[1]])
+        return matrix
+    
+    def generate_versors(self, n_versors):
+            # Initialize an empty list to store the versors
+            a = 4*np.pi/n_versors
+            d = np.sqrt(a)
+            M_theta = int(np.round(np.pi/d))
+            d_theta = np.pi/M_theta
+            d_phi = a/d_theta
+            versors = []
+            for m in range(M_theta):
+                theta = np.pi*(m + 0.5)/M_theta
+                M_phi = int(np.round(2*np.pi*np.sin(theta)/d_phi))
+                for n in range(M_phi):
+                    phi = 2*np.pi*n/M_phi
+                    versors.append([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), np.cos(theta)])
+            return np.array(versors)
 
 
     def close(self):
@@ -389,9 +405,9 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
-            print("\nRRMSE Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.RRMSE_error), 6)} ± {np.round(np.std(self.RRMSE_error), 6)} m")
-            print(f"\t- Extrema : {np.round(np.min(self.RRMSE_error), 6)} -> {np.round(np.max(self.RRMSE_error), 6)} m")
+            # print("\nRRMSE Statistics :")
+            # print(f"\t- Distribution : {np.round(np.mean(self.RRMSE_error), 6)} ± {np.round(np.std(self.RRMSE_error), 6)} m")
+            # print(f"\t- Extrema : {np.round(np.min(self.RRMSE_error), 6)} -> {np.round(np.max(self.RRMSE_error), 6)} m")
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise
