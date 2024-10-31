@@ -28,10 +28,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../npy_GNN'))
 from simulation_beam.parameters_2D import p_grid, p_grid_LR
 
 
-from torchsummary import summary
-
-from torch_geometric.loader import DataLoader
-
 
 
 class Net(th.nn.Module):
@@ -137,7 +133,8 @@ class DataGraph(Dataset):
             # edge_index = np.load(f"{directory}/{names[samples*2+i]}")[:, :2].T
             # edge_attr = np.load(f"{directory}/{names[samples*2+i]}")[:, 2]
             y = high_res_displacement - low_res_displacement
-            y = y.flatten()
+            node_features = th.tensor(node_features, dtype=th.float32).flatten()
+            y = th.tensor(y, dtype=th.float32).flatten()
             data_list.append([node_features, y])
         return data_list
 
@@ -173,7 +170,6 @@ class Trainer:
         self.batch_size = batch_size
         self.lr = lr
         self.epochs = epochs
-        foo = 1
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.data_graph = DataGraph(self.data_dir)
         self.validation_dir = 'npy_GNN/2024-10-24_17:46:55_estimation'
@@ -194,9 +190,9 @@ class Trainer:
         for epoch in range(self.epochs):
             running_loss = 0.0
             for i, data in enumerate(tqdm(self.loader)):
-                x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
+                x, y = data[0].to(self.device), data[1].to(self.device)
                 self.optimizer.zero_grad()
-                out = self.model(x, edge_index, edge_attr)
+                out = self.model(x)
                 y = y.view(-1, 225)
                 loss = self.criterion(out, y)
                 loss.backward()
@@ -216,8 +212,8 @@ class Trainer:
         running_loss = 0.0
         with th.no_grad():
             for i, data in enumerate(self.val_loader):
-                x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
-                out = self.model(x, edge_index, edge_attr)
+                x, y = data[0].to(self.device), data[1].to(self.device)
+                out = self.model(x)
                 y = y.view(-1, 225)
                 loss = self.criterion(out, y)
                 running_loss += loss.item()
@@ -225,9 +221,9 @@ class Trainer:
         return running_loss/len(self.val_loader)
     
     def save_model(self, model_dir):
-        if not os.path.exists('models'):
-            os.mkdir('models')
-        model_dir = f'models_GNN/{model_dir}.pth'
+        if not os.path.exists('models_FC'):
+            os.mkdir('models_FC')
+        model_dir = f'models_FC/{model_dir}.pth'
         th.save(self.model.state_dict(), model_dir)
     
     def load_model(self, model_dir):
@@ -247,7 +243,7 @@ if __name__ == '__main__':
     trainer = Trainer(data_dir, 16, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_GNN')
+    trainer.save_model(f'model_{training_time}_FC')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))
