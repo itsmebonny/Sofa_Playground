@@ -114,10 +114,8 @@ class DataGraph(Dataset):
     
     def create_data_list(directory):
         names = DataGraph.get_filenames(directory)
-        print(f"Number of FILES: {len(names)}")
         names_no_time = DataGraph.get_filenames_no_time(directory)
         types = len(set(names_no_time))
-        print(f"Number of TYPES: {types}")
         samples = len(names) // types
         data_list = []
         for i in range(samples):
@@ -232,9 +230,8 @@ class Trainer:
     
     def predict(self, data):
         self.model.eval()
-        x, edge_index, edge_attr = th.tensor(data.x, dtype=th.float32).to(self.device), th.tensor(data.edge_index, dtype=th.long).to(self.device), th.tensor(data.edge_attr, dtype=th.float32).to(self.device)
         with th.no_grad():
-            output = self.model(x, edge_index, edge_attr)
+            output = self.model(data)
         return output
     
 
