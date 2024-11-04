@@ -35,13 +35,16 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
+        self.l2_error_FC, self.MSE_error_FC = [], []
+        self.l2_deformation_FC, self.MSE_deformation_FC = [], []
+        self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
         self.save_for_images = False
 
-        self.network = Trainer('npy_GNN/2024-10-24_17:46:55_estimation', 16, 0.001, 500)
-        self.network.load_model('models_GNN/model_2024-10-30_00:39:31_GNN_velocity_broken.pth')
+        self.network = Trainer('npy_GNN/2024-11-03_18:32:29_estimation', 16, 0.001, 500)
+        self.network.load_model('models_GNN/model_2024-11-03_23:02:55_GNN.pth')
 
-        self.networkFC = TrainerFC('npy_GNN/2024-10-29_18:03:06_estimation', 16, 0.001,  500)
-        self.networkFC.load_model('models_FC/model_2024-10-31_20:21:02_GNN.pth')
+        self.networkFC = TrainerFC('npy_GNN/2024-11-03_18:32:29_estimation', 16, 0.001,  500)
+        self.networkFC.load_model('models_FC/model_2024-11-04_18:52:44_FC.pth')
         
     def createGraph(self, rootNode):
 
@@ -363,6 +366,7 @@ class AnimationStepController(Sofa.Core.Controller):
       
         if not self.bad_sample:
             self.compute_metrics()
+            self.compute_metrics_FC()
         print("Computation time for 1 time step: ", self.end_time - self.start_time)
         print("External force: ", np.linalg.norm(self.externalForce))
         print("L2 error: ", self.l2_error[-1])
@@ -386,6 +390,23 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.RMSE_error.append(np.sqrt((error.T @ error) / error.shape[0]))
         self.RMSE_deformation.append(np.sqrt((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0] ))
+    def compute_metrics_FC(self):
+        """
+        Compute L2 error and MSE for each sample for the FC model.
+        """
+
+        pred_FC = self.MO_training_FC.position.value - self.MO_training_FC.rest_position.value
+        gt_FC = self.MO1_LR.position.value - self.MO1_LR.rest_position.value
+
+        # Compute metrics only for non-zero displacements
+        error_FC = (gt_FC - pred_FC).reshape(-1)
+        self.l2_error_FC.append(np.linalg.norm(error_FC))
+        self.MSE_error_FC.append((error_FC.T @ error_FC) / error_FC.shape[0])
+        self.l2_deformation_FC.append(np.linalg.norm(gt_FC))
+        self.MSE_deformation_FC.append((gt_FC.reshape(-1).T @ gt_FC.reshape(-1)) / gt_FC.shape[0])
+
+        self.RMSE_error_FC.append(np.sqrt((error_FC.T @ error_FC) / error_FC.shape[0]))
+        self.RMSE_deformation_FC.append(np.sqrt((gt_FC.reshape(-1).T @ gt_FC.reshape(-1)) / gt_FC.shape[0]))
 
         # #ADD Relative RMSE
         # self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
@@ -439,30 +460,47 @@ class AnimationStepController(Sofa.Core.Controller):
     def close(self):
 
         if len(self.l2_error) > 0:
-            print("\nL2 ERROR Statistics :")
+            print("\nGNN L2 ERROR Statistics :")
             print(f"\t- Distribution : {np.round(np.mean(self.l2_error), 6)} ± {np.round(np.std(self.l2_error), 6)} m")
             print(f"\t- Extrema : {np.round(np.min(self.l2_error), 6)} -> {np.round(np.max(self.l2_error), 6)} m")
             relative_error = np.array(self.l2_error) / np.array(self.l2_deformation)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
-            print("\nMSE Statistics :")
+            print("\nGNN MSE Statistics :")
             print(f"\t- Distribution : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
             print(f"\t- Extrema : {np.round(np.min(self.MSE_error), 6)} -> {np.round(np.max(self.MSE_error), 6)} m²")
             relative_error = np.array(self.MSE_error) / np.array(self.MSE_deformation)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
-            print("\nRMSE Statistics :")
+            print("\nGNN RMSE Statistics :")
             print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)} ± {np.round(np.std(self.RMSE_error), 6)} m")
             print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)} -> {np.round(np.max(self.RMSE_error), 6)} m")
             relative_error = np.array(self.RMSE_error) / np.array(self.RMSE_deformation)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
-            # print("\nRRMSE Statistics :")
-            # print(f"\t- Distribution : {np.round(np.mean(self.RRMSE_error), 6)} ± {np.round(np.std(self.RRMSE_error), 6)} m")
-            # print(f"\t- Extrema : {np.round(np.min(self.RRMSE_error), 6)} -> {np.round(np.max(self.RRMSE_error), 6)} m")
+            print("\nFC L2 ERROR Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.l2_error_FC), 6)} ± {np.round(np.std(self.l2_error_FC), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.l2_error_FC), 6)} -> {np.round(np.max(self.l2_error_FC), 6)} m")
+            relative_error_FC = np.array(self.l2_error_FC) / np.array(self.l2_deformation_FC)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error_FC.mean(), 6)} ± {np.round(1e2 * relative_error_FC.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error_FC.min(), 6)} -> {np.round(np.max(relative_error_FC), 6)} %")
+
+            print("\nFC MSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.MSE_error_FC), 6)} ± {np.round(np.std(self.MSE_error_FC), 6)} m²")
+            print(f"\t- Extrema : {np.round(np.min(self.MSE_error_FC), 6)} -> {np.round(np.max(self.MSE_error_FC), 6)} m²")
+            relative_error_FC = np.array(self.MSE_error_FC) / np.array(self.MSE_deformation_FC)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error_FC.mean(), 6)} ± {np.round(1e2 * relative_error_FC.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error_FC.min(), 6)} -> {np.round(np.max(relative_error_FC), 6)} %")
+
+            print("\nFC RMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error_FC), 6)} ± {np.round(np.std(self.RMSE_error_FC), 6)} m")
+            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error_FC), 6)} -> {np.round(np.max(self.RMSE_error_FC), 6)} m")
+            relative_error_FC = np.array(self.RMSE_error_FC) / np.array(self.RMSE_deformation_FC)
+            print(f"\t- Relative Distribution : {np.round(1e2 * relative_error_FC.mean(), 6)} ± {np.round(1e2 * relative_error_FC.std(), 6)} %")
+            print(f"\t- Relative Extrema : {np.round(1e2 * relative_error_FC.min(), 6)} -> {np.round(np.max(relative_error_FC), 6)} %")
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise

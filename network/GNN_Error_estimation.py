@@ -28,8 +28,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../npy_GNN'))
 from simulation_beam.parameters_2D import p_grid, p_grid_LR
 
 
-from torchsummary import summary
-
 from torch_geometric.loader import DataLoader
 
 
@@ -183,7 +181,7 @@ class Trainer:
         foo = 1
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.data_graph = DataGraph(self.data_dir)
-        self.validation_dir = 'npy_GNN/2024-10-24_17:46:55_estimation'
+        self.validation_dir = 'npy_GNN/2024-11-03_21:44:34_estimation'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
@@ -250,7 +248,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN/2024-10-29_18:03:06_estimation'
+    data_dir = 'npy_GNN/2024-11-03_18:32:29_estimation'
     trainer = Trainer(data_dir, 16, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')

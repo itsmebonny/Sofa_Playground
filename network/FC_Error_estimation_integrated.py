@@ -170,7 +170,7 @@ class Trainer:
         self.epochs = epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.data_graph = DataGraph(self.data_dir)
-        self.validation_dir = 'npy_GNN/2024-10-24_17:46:55_estimation'
+        self.validation_dir = 'npy_GNN/2024-11-03_21:44:34_estimation'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
@@ -236,7 +236,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN/2024-10-29_18:03:06_estimation'
+    data_dir = 'npy_GNN/2024-11-03_18:32:29_estimation'
     trainer = Trainer(data_dir, 16, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
