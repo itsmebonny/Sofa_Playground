@@ -24,6 +24,7 @@ from torch_geometric.data import Data
 from scipy.interpolate import RBFInterpolator, griddata
 
 
+
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
@@ -175,10 +176,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         surface = self.surface_topo
         surface_LR = self.surface_topo_LR
-        surface_LR_FC = self.surface_topo_LR_FC
-
-        self.idx_surface = surface.triangles.value.reshape(-1)
-        self.idx_surface_LR = surface_LR.triangles.value.reshape(-1)
+        surface_LR_Falserface_LR = surface_LR.triangles.value.reshape(-1)
         self.idx_surface_LR_FC = surface_LR_FC.triangles.value.reshape(-1)
 
 

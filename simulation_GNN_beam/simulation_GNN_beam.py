@@ -133,25 +133,25 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = False
+        self.save = True
         self.efficient_sampling = False
         if self.efficient_sampling:
             self.count_v = 0
             self.num_versors = 5
             self.versors = self.generate_versors(self.num_versors)
-            self.magnitudes = np.linspace(0, 40, 30)
+            self.magnitudes = np.linspace(0, 80, 30)
             self.count_m = 0
             self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
             self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
         if self.save:
-            if not os.path.exists('npy_GNN'):
-                os.mkdir('npy_GNN')
+            if not os.path.exists('npy_GNN_beam'):
+                os.mkdir('npy_GNN_beam')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
             self.directory = self.directory + "_estimation"
             if self.efficient_sampling:
                 self.directory = self.directory + "_efficient"
-            os.makedirs(f'npy_GNN/{self.directory}')
+            os.makedirs(f'npy_GNN_beam/{self.directory}')
             print(f"Saving data to npy_GNN/{self.directory}")
         self.sampled = False
 
@@ -175,7 +175,7 @@ class AnimationStepController(Sofa.Core.Controller):
         if not self.efficient_sampling:
             self.theta = np.random.uniform(0, 2*np.pi)
             self.versor = np.array([np.cos(self.theta), np.sin(self.theta)])
-            self.magnitude = np.random.uniform(0, 70)
+            self.magnitude = np.random.uniform(0, 100)
             self.externalForce = np.append(self.magnitude * self.versor, 0)
         else:
             self.sample = self.count_m *self.num_versors + self.count_v

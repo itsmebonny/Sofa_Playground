@@ -23,6 +23,10 @@ from torch_geometric.data import Data
 
 from scipy.interpolate import RBFInterpolator, griddata
 
+#########################################
+# CORREGGI LA FORZA APPLICATA PERCHE' NON E' CORRETTA
+#########################################
+
 
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
