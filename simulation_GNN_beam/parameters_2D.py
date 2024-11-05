@@ -7,14 +7,14 @@ Define the following set of parameters :
 from numpy import array
 from collections import namedtuple
 
-nx = 50
-ny = 20
-nz = 1 # 2D simulation
+nx = 25
+ny = 10
+nz = 10 # 2D simulation
 
 
 # Grid parameters
-grid_min = array([0., -1., 0.])
-grid_max = array([10., 1., 0.])
+grid_min = array([0., -1., -1.])
+grid_max = array([10., 1., 1.])
 grid_resolution = array([nx, ny, nz])
 grid_nb_nodes = grid_resolution[0] * grid_resolution[1] * grid_resolution[2]
 grid_fixed_box = array([-0.1, -2.1, -0.1, 0.1, 2.1, 0.1])
@@ -27,10 +27,14 @@ grid = {'min': grid_min,
 p_grid = namedtuple('p_grid', grid)(**grid)
 
 nx_LR = 15
+nx_test = 30   # for testing purposes
 # nx_LR = nx // 2
 ny_LR = 5
+ny_test = 6    # for testing purposes
 # ny_LR = ny // 2
 nz_LR = nz
+nz_test = nz
+
 
 # Low resolution grid definition
 grid_min_LR = array([0., -1., 0.])
@@ -45,6 +49,14 @@ grid_LR = {'min': grid_min_LR,
            'nb_nodes': grid_nb_nodes_LR,
            'fixed_box': grid_fixed_box_LR}
 p_grid_LR = namedtuple('p_grid_LR', grid_LR)(**grid_LR)
+
+grid_test = {'min': grid_min,
+             'max': grid_max,
+             'res': array([nx_test, ny_test, nz_test]),
+             'size': grid_min.tolist() + grid_max.tolist(),
+             'nb_nodes': nx_test * ny_test * nz_test,
+             'fixed_box': grid_fixed_box}
+p_grid_test = namedtuple('p_grid_test', grid_test)(**grid_test)
 
 #pretty print grid parameters
 def print_grid_parameters():
