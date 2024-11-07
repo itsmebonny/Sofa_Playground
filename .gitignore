@@ -7,3 +7,4 @@ npy_beam/
 .vscode/
 lastUsedGUI.ini
 .runSofa.ini
+npy_GNN_beam/

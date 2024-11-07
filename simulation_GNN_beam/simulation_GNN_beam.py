@@ -283,20 +283,20 @@ class AnimationStepController(Sofa.Core.Controller):
             # U_low = U_low[:, :2]
     
         if self.save and not self.efficient_sampling:    
-            np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
-            np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(edges_high))
-            np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(edges_low))
-            np.save(f'npy_GNN/{self.directory}/VelHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(vel_high))
-            np.save(f'npy_GNN/{self.directory}/VelLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(vel_low))
+            np.save(f'npy_GNN_beam/{self.directory}/HighResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_high))
+            np.save(f'npy_GNN_beam/{self.directory}/CoarseResPoints_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(U_low))
+            np.save(f'npy_GNN_beam/{self.directory}/EdgesHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(edges_high))
+            np.save(f'npy_GNN_beam/{self.directory}/EdgesLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(edges_low))
+            np.save(f'npy_GNN_beam/{self.directory}/VelHigh_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(vel_high))
+            np.save(f'npy_GNN_beam/{self.directory}/VelLow_{round(np.linalg.norm(self.externalForce), 3)}_x_{round(self.versor[0], 3)}_y_{round(self.versor[1], 3)}.npy', np.array(vel_low))
             
         elif self.save and self.efficient_sampling:
-            np.save(f'npy_GNN/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(U_high))
-            np.save(f'npy_GNN/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(U_low))
-            np.save(f'npy_GNN/{self.directory}/EdgesHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(edges_high))
-            np.save(f'npy_GNN/{self.directory}/EdgesLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(edges_low))
-            np.save(f'npy_GNN/{self.directory}/VelHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(vel_high))
-            np.save(f'npy_GNN/{self.directory}/VelLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(vel_low))
+            np.save(f'npy_GNN_beam/{self.directory}/HighResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(U_high))
+            np.save(f'npy_GNN_beam/{self.directory}/CoarseResPoints_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(U_low))
+            np.save(f'npy_GNN_beam/{self.directory}/EdgesHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(edges_high))
+            np.save(f'npy_GNN_beam/{self.directory}/EdgesLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(edges_low))
+            np.save(f'npy_GNN_beam/{self.directory}/VelHigh_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(vel_high))
+            np.save(f'npy_GNN_beam/{self.directory}/VelLow_{round(self.magnitudes[self.count_magnitude], 3)}_x_{round(self.vector[0], 3)}_y_{round(self.vector[1], 3)}.npy', np.array(vel_low))
             
         else:
             pass
