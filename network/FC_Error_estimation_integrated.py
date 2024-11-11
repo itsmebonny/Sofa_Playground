@@ -31,13 +31,13 @@ from simulation_beam.parameters_2D import p_grid, p_grid_LR
 
 
 class Net(th.nn.Module):
-    def __init__(self):
+    def __init__(self, input_size, output_size):
         super(Net, self).__init__()
-        self.lin1 = th.nn.Linear(225, 512)
+        self.lin1 = th.nn.Linear(input_size, 512)
         self.lin2 = th.nn.Linear(512, 256)
         self.lin3 = th.nn.Linear(256, 128)
-        self.lin4 = th.nn.Linear(128, 225)
-        self.relu = th.nn.ReLU()
+        self.lin4 = th.nn.Linear(128, output_size)
+        self.relu = th.nn.GELU()
         self.dropout = th.nn.Dropout(0.25)
     
     def forward(self, x):
@@ -118,7 +118,7 @@ class DataGraph(Dataset):
         types = len(set(names_no_time))
         samples = len(names) // types
         data_list = []
-        for i in range(samples):
+        for i in tqdm(range(samples)):
             high_res_displacement = np.load(f"{directory}/{names[samples*3+i]}")
             low_res_displacement = np.load(f"{directory}/{names[i]}")
             # timestep = names[i].split("_")[6]
@@ -170,13 +170,19 @@ class Trainer:
         self.epochs = epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.data_graph = DataGraph(self.data_dir)
-        self.validation_dir = 'npy_GNN/2024-11-03_21:44:34_estimation'
+        self.nb_nodes = self.data_graph.data_list[0][0].shape[0]
+        self.input_size = self.nb_nodes
+        self.output_size = self.nb_nodes
+        print(f"Input size: {self.input_size}")
+        print(f"Output size: {self.output_size}")
+        print(f"Number of nodes: {self.nb_nodes}")
+        self.validation_dir = 'npy_GNN/2024-11-03_21:44:34_validation'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
         self.loader = DataLoader(self.data_list, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data_list, batch_size=self.batch_size, shuffle=True)
-        self.model = Net().to(self.device)
+        self.model = Net(self.input_size, self.output_size).to(self.device)
         self.criterion = RMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=15, min_lr=1e-8)
@@ -191,7 +197,7 @@ class Trainer:
                 x, y = data[0].to(self.device), data[1].to(self.device)
                 self.optimizer.zero_grad()
                 out = self.model(x)
-                y = y.view(-1, 225)
+                y = y.view(-1, self.nb_nodes)
                 loss = self.criterion(out, y)
                 loss.backward()
                 self.optimizer.step()
@@ -212,7 +218,7 @@ class Trainer:
             for i, data in enumerate(self.val_loader):
                 x, y = data[0].to(self.device), data[1].to(self.device)
                 out = self.model(x)
-                y = y.view(-1, 225)
+                y = y.view(-1, self.nb_nodes)
                 loss = self.criterion(out, y)
                 running_loss += loss.item()
         print(f"Validation Loss: {running_loss/len(self.val_loader)}")
@@ -236,11 +242,19 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN/2024-11-03_18:32:29_estimation'
+    data_dir = 'npy_GNN/2024-11-03_18:32:29_training' # CAMBIA NOME MODELLO SE 2D O 3D
+    if 'beam' in data_dir:
+        print("Beam model")
+    else:
+        print("2D model")
     trainer = Trainer(data_dir, 16, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_FC')
+    #if folder contains 'beam' then save as beam model, otherwise save as GNN model
+    if 'beam' in data_dir:
+        trainer.save_model(f'model_{training_time}_FC_beam')
+    else:
+        trainer.save_model(f'model_{training_time}_FC')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

@@ -21,7 +21,7 @@ from network.FC_Error_estimation_integrated import Trainer as TrainerFC
 from parameters_2D import p_grid, p_grid_LR
 from torch_geometric.data import Data
 
-from scipy.interpolate import RBFInterpolator, griddata
+from scipy.interpolate import RBFInterpolator, griddata, RegularGridInterpolator
 
 
 
@@ -41,11 +41,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
         self.save_for_images = False
 
-        self.network = Trainer('npy_GNN/2024-11-03_18:32:29_estimation', 16, 0.001, 500)
+        self.network = Trainer('npy_GNN/2024-11-11_16:31:07_loading', 16, 0.001, 500)
         self.network.load_model('models_GNN/model_2024-11-03_23:02:55_GNN.pth')
 
-        self.networkFC = TrainerFC('npy_GNN/2024-11-03_18:32:29_estimation', 16, 0.001,  500)
-        self.networkFC.load_model('models_FC/model_2024-11-04_18:52:44_FC.pth')
+        self.networkFC = TrainerFC('npy_GNN/2024-11-11_16:31:07_loading', 16, 0.001,  500)
+        self.networkFC.load_model('models_FC/model_2024-11-11_18:03:24_FC.pth')
         
     def createGraph(self, rootNode):
 
@@ -77,7 +77,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.exactSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
+        self.exactSolution.addObject('CGLinearSolver', iterations=2000, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6") 
         self.exactSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.exactSolution.addObject('BoxROI', name='ROI', box=p_grid.fixed_box)
         self.exactSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -103,7 +103,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.LowResSolution.addObject('CGLinearSolver', iterations=500, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
+        self.LowResSolution.addObject('CGLinearSolver', iterations=1000, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
         self.LowResSolution.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution.addObject('FixedConstraint', indices='@ROI.indices')
@@ -129,7 +129,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO2_FC = self.LowResSolution_FC.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.LowResSolution_FC.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
         self.LowResSolution_FC.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.LowResSolution_FC.addObject('CGLinearSolver', iterations=500, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
+        self.LowResSolution_FC.addObject('CGLinearSolver', iterations=2000, name="linear solver", tolerance="1.0e-6", threshold="1.0e-6")
         self.LowResSolution_FC.addObject('TriangularFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large")
         self.LowResSolution_FC.addObject('BoxROI', name='ROI', box=p_grid_LR.fixed_box)
         self.LowResSolution_FC.addObject('FixedConstraint', indices='@ROI.indices')
@@ -144,7 +144,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.trained_nodes_FC.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@coarseDOFs', output_topology='@triangleTopo')
 
         self.LowResSolution.addChild("visual_FC")
-        self.visual_model_FC = self.LowResSolution.visual_FC.addObject('OglModel', src='@../grid', color='1 0 0 0.2')
+        self.visual_model_FC = self.LowResSolution.visual_FC.addObject('OglModel', src='@../grid', color='1 1 0 0.2')
         self.LowResSolution.visual_FC.addObject('IdentityMapping', input='@../DOFs', output='@./')
 
         
@@ -176,9 +176,11 @@ class AnimationStepController(Sofa.Core.Controller):
 
         surface = self.surface_topo
         surface_LR = self.surface_topo_LR
-        surface_LR_Falserface_LR = surface_LR.triangles.value.reshape(-1)
-        self.idx_surface_LR_FC = surface_LR_FC.triangles.value.reshape(-1)
+        surface_LR_FC = self.surface_topo_LR_FC
 
+        self.idx_surface = surface.triangles.value.reshape(-1)
+        self.idx_surface_LR = surface_LR.triangles.value.reshape(-1)
+        self.idx_surface_LR_FC = surface_LR_FC.triangles.value.reshape(-1)
 
 
     def onAnimateBeginEvent(self, event):
@@ -298,12 +300,14 @@ class AnimationStepController(Sofa.Core.Controller):
         #print("Rest position shape: ", self.MO_training.position.value)
         displacement = self.MO_training.position.value.copy() - self.MO_training.rest_position.value.copy()
         displacement = displacement[:, :2]
-        #print("Displacement: ", displacement)
-
-        interpolator = RBFInterpolator(positions, displacement, neighbors=10, kernel="thin_plate_spline")
+        # #print("Displacement: ", displacement)
+        # print(f"Number of values in the FC model: {len(np.reshape(positions, -1))} and amount of unique values: {len(np.unique(np.reshape(positions, -1)))}")
+        # interpolator = RBFInterpolator(positions, displacement, neighbors=10, kernel="thin_plate_spline")
         interpolate_positions = self.MO2.rest_position.value.copy()
         interpolate_positions_2D = self.MO2.rest_position.value.copy()[:, :2]
-        corrected_displacement = interpolator(interpolate_positions_2D)
+        # corrected_displacement = interpolator(interpolate_positions_2D)
+
+        corrected_displacement = self.interpolate_vector_field(positions, displacement, interpolate_positions_2D)
 
         #print("Corrected displacement: ", corrected_displacement)
         #print("Before correction: ", self.MO2.position.value)
@@ -316,11 +320,10 @@ class AnimationStepController(Sofa.Core.Controller):
         displacement_FC = self.MO_training_FC.position.value.copy() - self.MO_training_FC.rest_position.value.copy()
         displacement_FC = displacement_FC[:, :2]
 
-        interpolator_FC = RBFInterpolator(positions_FC, displacement_FC, neighbors=10, kernel="thin_plate_spline")
+        # interpolator_FC = RBFInterpolator(positions_FC, displacement_FC, neighbors=10, kernel="thin_plate_spline")
         interpolate_positions_FC = self.MO2_FC.rest_position.value.copy()
         interpolate_positions_2D_FC = self.MO2_FC.rest_position.value.copy()[:, :2]
-        corrected_displacement_FC = interpolator_FC(interpolate_positions_2D_FC)
-
+        corrected_displacement_FC = self.interpolate_vector_field(positions_FC, displacement_FC, interpolate_positions_2D_FC)
         corrected_displacement_FC = np.append(corrected_displacement_FC, np.zeros((interpolate_positions_FC.shape[0], 1)), axis=1)
         self.MO2_FC.position.value = interpolate_positions_FC + corrected_displacement_FC
 
@@ -370,6 +373,26 @@ class AnimationStepController(Sofa.Core.Controller):
         print("L2 error: ", self.l2_error[-1])
         print("L2 deformation: ", self.l2_deformation[-1])
         print("Relative error: ", self.l2_error[-1]/np.linalg.norm(self.MO_training.position.value - self.MO_training.rest_position.value))
+
+
+    def interpolate_vector_field(self, old_grid, vector_field, new_grid):
+        #using RBF interpolation to interpolate the vector field from the old grid to the new grid
+        x = np.linspace(np.min(old_grid[:, 0]), np.max(old_grid[:, 0]), 15)
+        y = np.linspace(np.min(old_grid[:, 1]), np.max(old_grid[:, 1]), 5)
+        u = vector_field[:, 0].reshape(y.shape[0], x.shape[0])
+        v = vector_field[:, 1].reshape(y.shape[0], x.shape[0])
+        swap_grid = np.zeros_like(new_grid)
+        swap_grid[:, 0] = new_grid[:, 1]
+        swap_grid[:, 1] = new_grid[:, 0]
+
+        rgi_u = RegularGridInterpolator((y, x), u, method='cubic', bounds_error=False, fill_value=None)
+        rgi_v = RegularGridInterpolator((y, x), v, method='cubic', bounds_error=False, fill_value=None)
+
+        u_new = rgi_u(swap_grid)
+        v_new = rgi_v(swap_grid)
+
+
+        return np.array([u_new, v_new]).T
 
     def compute_metrics(self):
         """
@@ -499,6 +522,13 @@ class AnimationStepController(Sofa.Core.Controller):
             relative_error_FC = np.array(self.RMSE_error_FC) / np.array(self.RMSE_deformation_FC)
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error_FC.mean(), 6)} ± {np.round(1e2 * relative_error_FC.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error_FC.min(), 6)} -> {np.round(np.max(relative_error_FC), 6)} %")
+
+            #print a small table comparing the RMSE of the two models
+            print("\nComparison of RMSE between GNN and FC :")
+            print(f"\t- GNN : {np.round(np.mean(self.RMSE_error), 6)} ± {np.round(np.std(self.RMSE_error), 6)} m")
+            print(f"\t- FC : {np.round(np.mean(self.RMSE_error_FC), 6)} ± {np.round(np.std(self.RMSE_error_FC), 6)} m")
+
+
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise

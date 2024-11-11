@@ -33,15 +33,16 @@ from torch_geometric.loader import DataLoader
 
 
 class Net(th.nn.Module):
-    def __init__(self):
+    def __init__(self, nb_nodes, nb_features):
         super(Net, self).__init__()
-        self.conv1 = GCNConv(3, 16)
+        self.nb_nodes = nb_nodes
+        self.conv1 = GCNConv(nb_features, 16)
         self.conv_mid = GCNConv(16, 16)
-        self.conv2 = GCNConv(16, 3)
+        self.conv2 = GCNConv(16, nb_features)
         self.repeat = 5
-        self.linear1 = th.nn.Linear(225, 512)
+        self.linear1 = th.nn.Linear(nb_nodes*3, 512) # nb_nodes * final_conv_features
         self.linear2 = th.nn.Linear(512, 512)
-        self.linear3 = th.nn.Linear(512, 225)
+        self.linear3 = th.nn.Linear(512, nb_nodes*3) # 225 if 2D, 7500 if 3D
 
     def forward(self, x, edge_index, edge_attr):
         x = self.conv1(x, edge_index, edge_attr)
@@ -51,7 +52,7 @@ class Net(th.nn.Module):
             x = F.gelu(x)
         x = self.conv2(x, edge_index, edge_attr)
         x = F.relu(x)
-        x = x.view(-1, 225)
+        x = x.view(-1, self.nb_nodes*3)
         x = F.gelu(self.linear1(x))
         x = F.gelu(self.linear2(x))
         x = self.linear3(x)
@@ -119,13 +120,12 @@ class DataGraph(Dataset):
     
     def create_data_list(directory):
         names = DataGraph.get_filenames(directory)
-        print(f"Number of FILES: {len(names)}")
         names_no_time = DataGraph.get_filenames_no_time(directory)
         types = len(set(names_no_time))
-        print(f"Number of TYPES: {types}")
         samples = len(names) // types
         data_list = []
-        for i in range(samples):
+        test_samples = samples // 5
+        for i in tqdm(range(samples)):
             high_res_displacement = np.load(f"{directory}/{names[samples*3+i]}")
             low_res_displacement = np.load(f"{directory}/{names[i]}")
             # timestep = names[i].split("_")[6]
@@ -139,7 +139,6 @@ class DataGraph(Dataset):
             edge_attr = np.load(f"{directory}/{names[samples*2+i]}")[:, 2]
             y = high_res_displacement - low_res_displacement
             y = y.flatten()
-            y = y
             # y = high_res_velocity - low_res_velocity
             # y = y.flatten()
             data = Data(x=th.tensor(node_features, dtype=th.float32), edge_index=th.tensor(edge_index, dtype=th.long), edge_attr=th.tensor(edge_attr, dtype=th.float32), y=th.tensor(y, dtype=th.float32))
@@ -178,16 +177,20 @@ class Trainer:
         self.batch_size = batch_size
         self.lr = lr
         self.epochs = epochs
-        foo = 1
+
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.data_graph = DataGraph(self.data_dir)
-        self.validation_dir = 'npy_GNN/2024-11-03_21:44:34_estimation'
+        self.nb_nodes = self.data_graph.data_list[0].x.shape[0]
+        self.nb_features = self.data_graph.data_list[0].x.shape[1]
+        print(f"Number of features: {self.nb_features}")
+        print(f"Number of nodes: {self.nb_nodes}")
+        self.validation_dir = 'npy_GNN_beam/2024-11-06_19:58:56_validation'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
         self.loader = DataLoader(self.data_list, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(self.val_data_list, batch_size=self.batch_size, shuffle=True)
-        self.model = Net().to(self.device)
+        self.model = Net(self.nb_nodes, self.nb_features).to(self.device)
         self.criterion = RMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=15, min_lr=1e-8)
@@ -202,7 +205,7 @@ class Trainer:
                 x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
                 self.optimizer.zero_grad()
                 out = self.model(x, edge_index, edge_attr)
-                y = y.view(-1, 225)
+                y = y.view(-1, self.nb_nodes*3)
                 loss = self.criterion(out, y)
                 loss.backward()
                 self.optimizer.step()
@@ -223,7 +226,7 @@ class Trainer:
             for i, data in enumerate(self.val_loader):
                 x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
                 out = self.model(x, edge_index, edge_attr)
-                y = y.view(-1, 225)
+                y = y.view(-1, self.nb_nodes*3)
                 loss = self.criterion(out, y)
                 running_loss += loss.item()
         print(f"Validation Loss: {running_loss/len(self.val_loader)}")
@@ -248,11 +251,11 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN/2024-11-03_18:32:29_estimation'
+    data_dir = 'npy_GNN_beam/2024-11-06_20:53:31_testing'
     trainer = Trainer(data_dir, 16, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    trainer.save_model(f'model_{training_time}_GNN')
+    trainer.save_model(f'model_{training_time}_GNN_beam')
     print(f"Model saved as model_{training_time}.pth")
   
     #summary(model, (1, data.input_size))

@@ -26,7 +26,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.object_mass = 0.5
         self.createGraph(node)
         self.root = node
-        self.save = False
+        self.save = True
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
