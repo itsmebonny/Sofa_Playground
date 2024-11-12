@@ -8,3 +8,5 @@ npy_beam/
 lastUsedGUI.ini
 .runSofa.ini
 npy_GNN_beam/
+npy_GNN_BC/
+npy_GNN_beam_BC/
