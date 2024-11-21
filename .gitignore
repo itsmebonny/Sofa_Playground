@@ -9,4 +9,9 @@ lastUsedGUI.ini
 .runSofa.ini
 npy_GNN_beam/
 npy_GNN_BC/
-npy_GNN_beam_BC/
+npy_BC_beam/
+*/__pycache__/*
+*.log
+
+models_BC/
+models_GNN/

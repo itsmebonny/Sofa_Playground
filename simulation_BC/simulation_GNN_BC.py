@@ -7,13 +7,12 @@ import json
 from time import process_time, time
 import datetime
 from sklearn.preprocessing import MinMaxScaler
-from parameters_2D import p_grid, p_grid_LR
 # add network path to the python path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network'))
 
 
-from parameters_2D import p_grid, p_grid_LR
+from parameters_2D_GNN import p_grid, p_grid_LR
 
 
 ########################################
@@ -54,6 +53,8 @@ class AnimationStepController(Sofa.Core.Controller):
         rootNode.addObject('VisualStyle', name="visualStyle", displayFlags="showBehaviorModels showCollisionModels")
         
         sphereRadius=0.025
+
+
 
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
@@ -179,11 +180,12 @@ class AnimationStepController(Sofa.Core.Controller):
         x_max = 0.0
         y_min = 0.0
         y_max = 0.0
-        z_min = 0.0
-        z_max = 0.0
+        z_min = -0.1
+        z_max = 0.1
 
        # Define random box
         side = np.random.randint(1, 4)
+        
         if side == 2:
             x_min = 9.99
             x_max = 10.01
@@ -205,13 +207,11 @@ class AnimationStepController(Sofa.Core.Controller):
 
         # Set the new bounding box
         self.exactSolution.removeObject(self.cff_box)
-        self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1,
-                                            box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+        self.cff_box = self.exactSolution.addObject('BoxROI', name='ForceBox', drawBoxes=False, drawSize=1, box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
         self.cff_box.init()
 
         self.LowResSolution.removeObject(self.cff_box_LR)
-        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1,
-                                            box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
+        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ForceBox', drawBoxes=True, drawSize=1, box=[x_min, y_min, -0.1, x_max, y_max, 0.1])
         self.cff_box_LR.init()
 
         # Get the intersection with the surface
@@ -225,6 +225,9 @@ class AnimationStepController(Sofa.Core.Controller):
         self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.cff.init()
 
+        indices_training = np.where((self.MO_training.rest_position.value[:, 0] >= x_min) & (self.MO_training.rest_position.value[:, 0] <= x_max) & (self.MO_training.rest_position.value[:, 1] >= y_min) & (self.MO_training.rest_position.value[:, 1] <= y_max) & (self.MO_training.rest_position.value[:, 2] >= z_min) & (self.MO_training.rest_position.value[:, 2] <= z_max))[0]
+
+        print(f"Number of nodes in the training set: {len(indices_training)}")
 
         self.LowResSolution.removeObject(self.cffLR)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices=indices_LR, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
@@ -234,10 +237,14 @@ class AnimationStepController(Sofa.Core.Controller):
         self.bounding_box = {"x_min": x_min, "x_max": x_max, "y_min": y_min, "y_max": y_max}
         self.versor_rounded = [round(i, 4) for i in self.versor]
         self.versor_rounded = list(self.versor_rounded)
+        self.versor_rounded.append(0)
         self.force_info = {"magnitude": round(self.magnitude, 4), "versor": self.versor_rounded}
+        self.indices_BC = list(indices_training)
+        for i in range(len(indices_training)):
+            self.indices_BC[i] = int(indices_training[i])
         print(f"Side: {side}")
-        if indices_LR == [] or indices == []:
-            print("Empty intersection")
+        if indices_training.size == 0:
+            print("Bad sample, no nodes in the bounding box")
             self.bad_sample = True
         self.start_time = process_time()
 
@@ -254,8 +261,9 @@ class AnimationStepController(Sofa.Core.Controller):
         # vel_low = self.compute_velocity(self.MO_training)
         # edges_high = self.compute_edges(self.surface_topo)
         edges_low = self.compute_edges(self.surface_topo_LR)
-        self.tmp_dir = f'npy_GNN_BC/{self.directory}/sample_{self.iteration}'
+       
         if self.save and self.bad_sample == False:
+            self.tmp_dir = f'npy_GNN_BC/{self.directory}/sample_{self.iteration}'
             if not os.path.exists(self.tmp_dir):
                 os.makedirs(self.tmp_dir)
             else:
@@ -266,14 +274,11 @@ class AnimationStepController(Sofa.Core.Controller):
             np.save(f'{self.tmp_dir}/edges_low.npy', edges_low)
             #save in a JSON file the bounding box and the force info with the structure Iteration -> Bounding box -> Force info and close the file
             with open(f'{self.tmp_dir}/info.json', 'w') as f:
-                json.dump({self.iteration: {"bounding_box": self.bounding_box, "force_info": self.force_info}}, f)
-            
+                json.dump({'iteration': self.iteration, 'bounding_box': self.bounding_box, 'force_info': self.force_info, 'indices_BC': self.indices_BC}, f)
+
             
             print(f"Saved data to {self.tmp_dir}")
-
-
-        
-        self.iteration += 1
+            self.iteration += 1
 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
@@ -357,4 +362,9 @@ def main():
 
 
 if __name__ == '__main__':
+    from time import sleep
+    from tqdm import tqdm
+    # waiting_time = 21600
+    # for i in tqdm(range(waiting_time)):
+    #     sleep(1)
     main()
