@@ -18,7 +18,7 @@ print(sys.path)
 
 from network_BC.GNN_Error_estimation import Trainer as Trainer
 from network_BC.FC_Error_estimation_integrated import Trainer as TrainerFC
-from parameters_2D import p_grid, p_grid_LR
+from parameters_2D_GNN import p_grid, p_grid_LR
 from torch_geometric.data import Data
 
 from scipy.interpolate import RBFInterpolator, griddata, RegularGridInterpolator
@@ -41,11 +41,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
         self.save_for_images = False
 
-        self.network = Trainer('npy_GNN_BC/2024-11-18_22:48:32_fast_loading', 16, 0.001, 500)
-        self.network.load_model('models_BC/model_2024-11-15_15:30:20_GNN.pth')
+        self.network = Trainer('npy_GNN_BC/2024-11-25_13:35:55_fast_loading_250_nodes', 16, 0.001, 500)
+        self.network.load_model('models_BC/model_2024-11-25_17:23:22_GNN_250_nodes.pth')
 
-        self.networkFC = TrainerFC('npy_GNN_BC/2024-11-18_22:48:32_fast_loading', 16, 0.001,  500)
-        self.networkFC.load_model('models_BC/model_2024-11-18_13:58:48_FC.pth')
+        self.networkFC = TrainerFC('npy_GNN_BC/2024-11-25_13:35:55_fast_loading_250_nodes', 16, 0.001,  500)
+        self.networkFC.load_model('models_BC/model_2024-11-25_18:12:30_FC_250_nodes.pth')
         
     def createGraph(self, rootNode):
 
@@ -332,8 +332,9 @@ class AnimationStepController(Sofa.Core.Controller):
         interpolate_positions = self.MO2.rest_position.value.copy()
         interpolate_positions_2D = self.MO2.rest_position.value.copy()[:, :2]
         # corrected_displacement = interpolator(interpolate_positions_2D)
+        nx, ny = (p_grid_LR.res[0], p_grid_LR.res[1])
 
-        corrected_displacement = self.interpolate_vector_field(positions, displacement, interpolate_positions_2D)
+        corrected_displacement = self.interpolate_vector_field(positions, displacement, interpolate_positions_2D, nx, ny)
 
         #print("Corrected displacement: ", corrected_displacement)
         #print("Before correction: ", self.MO2.position.value)
@@ -349,7 +350,7 @@ class AnimationStepController(Sofa.Core.Controller):
         # interpolator_FC = RBFInterpolator(positions_FC, displacement_FC, neighbors=10, kernel="thin_plate_spline")
         interpolate_positions_FC = self.MO2_FC.rest_position.value.copy()
         interpolate_positions_2D_FC = self.MO2_FC.rest_position.value.copy()[:, :2]
-        corrected_displacement_FC = self.interpolate_vector_field(positions_FC, displacement_FC, interpolate_positions_2D_FC)
+        corrected_displacement_FC = self.interpolate_vector_field(positions_FC, displacement_FC, interpolate_positions_2D_FC, nx, ny)
         corrected_displacement_FC = np.append(corrected_displacement_FC, np.zeros((interpolate_positions_FC.shape[0], 1)), axis=1)
         self.MO2_FC.position.value = interpolate_positions_FC + corrected_displacement_FC
 
@@ -401,10 +402,10 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Relative error: ", self.l2_error[-1]/np.linalg.norm(self.MO_training.position.value - self.MO_training.rest_position.value))
 
 
-    def interpolate_vector_field(self, old_grid, vector_field, new_grid):
+    def interpolate_vector_field(self, old_grid, vector_field, new_grid, nx, ny):
         #using RBF interpolation to interpolate the vector field from the old grid to the new grid
-        x = np.linspace(np.min(old_grid[:, 0]), np.max(old_grid[:, 0]), 15)
-        y = np.linspace(np.min(old_grid[:, 1]), np.max(old_grid[:, 1]), 5)
+        x = np.linspace(np.min(old_grid[:, 0]), np.max(old_grid[:, 0]), nx)
+        y = np.linspace(np.min(old_grid[:, 1]), np.max(old_grid[:, 1]), ny)
         u = vector_field[:, 0].reshape(y.shape[0], x.shape[0])
         v = vector_field[:, 1].reshape(y.shape[0], x.shape[0])
         swap_grid = np.zeros_like(new_grid)

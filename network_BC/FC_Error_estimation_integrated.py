@@ -185,7 +185,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_BC_beam/2024-11-20_10:18:09_validation'
+            self.validation_dir = 'npy_GNN_BC/2024-11-25_11:51:37_validation_250_nodes'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
@@ -250,7 +250,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_BC_beam/2024-11-19_22:01:36_testing' # CAMBIA NOME MODELLO SE 2D O 3D
+    data_dir = 'npy_GNN_BC/2024-11-24_23:39:33_training_250_nodes' # CAMBIA NOME MODELLO SE 2D O 3D
     if 'beam' in data_dir:
         print("Beam model")
     else:
@@ -261,6 +261,8 @@ if __name__ == '__main__':
     #if folder contains 'beam' then save as beam model, otherwise save as GNN model
     if 'beam' in data_dir:
         trainer.save_model(f'model_{training_time}_FC_beam')
+    elif '250_nodes' in data_dir:
+        trainer.save_model(f'model_{training_time}_FC_250_nodes')
     else:
         trainer.save_model(f'model_{training_time}_FC')
     print(f"Model saved as model_{training_time}.pth")

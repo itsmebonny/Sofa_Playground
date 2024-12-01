@@ -133,7 +133,7 @@ class AnimationStepController(Sofa.Core.Controller):
                 os.mkdir('npy_GNN_BC')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-            self.directory = self.directory + "_estimation"
+            self.directory = self.directory + "_estimation_250_nodes"
             if self.efficient_sampling:
                 self.directory = self.directory + "_efficient"
             os.makedirs(f'npy_GNN_BC/{self.directory}')

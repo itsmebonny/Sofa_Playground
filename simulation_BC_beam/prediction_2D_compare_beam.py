@@ -45,11 +45,11 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
         self.save_for_images = False
 
-        self.network = Trainer('npy_BC_beam/2024-11-21_15:55:01_fast_loading', 32, 0.001, 500)
+        self.network = Trainer('npy_BC_beam/2024-11-23_16:54:46_fast_loading', 32, 0.001, 500)
         self.network.load_model('models_BC/model_2024-11-21_10:53:27_GNN_beam.pth')
 
-        self.networkFC = TrainerFC('npy_BC_beam/2024-11-21_15:55:01_fast_loading', 32, 0.001,  500)
-        self.networkFC.load_model('models_BC/model_2024-11-20_16:11:32_FC_beam.pth')
+        self.networkFC = TrainerFC('npy_BC_beam/2024-11-23_16:54:46_fast_loading', 32, 0.001,  500)
+        self.networkFC.load_model('models_BC/model_2024-11-23_13:28:54_FC_beam.pth')
         
     def createGraph(self, rootNode):
 

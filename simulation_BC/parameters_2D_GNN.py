@@ -26,9 +26,9 @@ grid = {'min': grid_min,
         'fixed_box': grid_fixed_box}
 p_grid = namedtuple('p_grid', grid)(**grid)
 
-nx_LR = 15          
+nx_LR = 25          
 # nx_LR = nx // 2
-ny_LR = 5
+ny_LR = 10
 # ny_LR = ny // 2
 nz_LR = nz
 
