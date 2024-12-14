@@ -13,5 +13,4 @@ npy_BC_beam/
 */__pycache__/*
 *.log
 
-models_BC/
 models_GNN/
