@@ -357,16 +357,162 @@ def mesh_stl_with_char_length(stl_file, max_char_length):
     gmsh.fltk.run()
 
 
+def create_high_freq_2D(zigzag_amplitude=0.7, x_min=0, y_min=-1, x_max=10, y_max=1, 
+                       n_zigzags_horizontal=160, n_zigzags_vertical=30, lc=0.5):
+    """
+    Create a rectangle with zigzag edges with different numbers of horizontal and vertical zigzags
+    zigzag_amplitude: amplitude of the zigzag
+    n_zigzags_horizontal: number of zigzags on top and bottom edges
+    n_zigzags_vertical: number of zigzags on left and right edges 
+    """
+    points = []
+    lines = []
+    
+    # Bottom edge - zigzags pointing outwards
+    x_step = (x_max - x_min) / n_zigzags_horizontal
+    for i in range(n_zigzags_horizontal + 1):
+        x = x_min + i * x_step
+        y = y_min + (zigzag_amplitude if i % 2 else 0)  # Changed + to - to point outwards
+        points.append(gmsh.model.geo.addPoint(x, y, 0, lc))
+    
+    # Right edge
+    y_step = (y_max - y_min) / n_zigzags_vertical
+    for i in range(1, n_zigzags_vertical + 1):
+        y = y_min + i * y_step
+        x = x_max #+ (zigzag_amplitude if i % 2 else 0)
+        points.append(gmsh.model.geo.addPoint(x, y, 0, lc))
+    
+    # Top edge
+    for i in range(1, n_zigzags_horizontal + 1):
+        x = x_max - i * x_step
+        y = y_max - (zigzag_amplitude if i % 2 else 0)
+        points.append(gmsh.model.geo.addPoint(x, y, 0, lc))
+    
+    # Left edge (straight line)
+    y_step = (y_max - y_min) / n_zigzags_vertical
+    for i in range(1, n_zigzags_vertical):
+        y = y_max - i * y_step
+        x = x_min
+        points.append(gmsh.model.geo.addPoint(x, y, 0, lc))
+    
+    # Create lines connecting all points
+    for i in range(len(points)):
+        lines.append(gmsh.model.geo.addLine(points[i], points[(i + 1) % len(points)]))
+    
+    # Create curve loop and surface
+    cl = gmsh.model.geo.addCurveLoop(lines)
+    s = gmsh.model.geo.addPlaneSurface([cl])
+    
+    gmsh.model.geo.synchronize()
+    gmsh.model.mesh.generate(2)
+    
+    nodes = gmsh.model.mesh.getNodes()
+    nb_nodes = len(nodes[0])
+    
+    gmsh.write(f"mesh/zigzag_{nb_nodes}.msh")
+    gmsh.fltk.run()
 
 
+
+
+
+def create_lego_brick(length=10, width=5, height=1, stud_height=0.5, 
+                     n_studs_x=4, n_studs_y=2, stud_diameter=0.5, lc=0.2):
+    """
+    Create a LEGO-like brick
+    length, width: base rectangle dimensions
+    height: base height
+    stud_height: height of studs
+    n_studs_x: number of studs along length
+    n_studs_y: number of studs along width
+    stud_diameter: diameter of each stud
+    lc: mesh characteristic length
+    """
+    gmsh.initialize()
+    gmsh.model.add("lego_brick")
     
+    # Input validation
+    if stud_diameter * n_studs_x > length or stud_diameter * n_studs_y > width:
+        raise ValueError("Too many studs for given dimensions")
     
+    # Create base rectangle
+    p1 = gmsh.model.geo.addPoint(0, 0, 0, lc)
+    p2 = gmsh.model.geo.addPoint(length, 0, 0, lc)
+    p3 = gmsh.model.geo.addPoint(length, width, 0, lc)
+    p4 = gmsh.model.geo.addPoint(0, width, 0, lc)
+    
+    # Create base outline
+    l1 = gmsh.model.geo.addLine(p1, p2)
+    l2 = gmsh.model.geo.addLine(p2, p3)
+    l3 = gmsh.model.geo.addLine(p3, p4)
+    l4 = gmsh.model.geo.addLine(p4, p1)
+    
+    # Create base surface
+    base_loop = gmsh.model.geo.addCurveLoop([l1, l2, l3, l4])
+    base_surface = gmsh.model.geo.addPlaneSurface([base_loop])
+    
+    # Extrude base
+    base_volume = gmsh.model.geo.extrude([(2, base_surface)], 0, 0, height)
+    
+    # Calculate stud spacing
+    x_margin = (length - (n_studs_x * stud_diameter)) / (n_studs_x + 1)
+    y_margin = (width - (n_studs_y * stud_diameter)) / (n_studs_y + 1)
+    
+    # Create studs
+    stud_surfaces = []
+    for i in range(n_studs_x):
+        for j in range(n_studs_y):
+            # Calculate stud center
+            x_center = x_margin + (i * (stud_diameter + x_margin)) + stud_diameter/2
+            y_center = y_margin + (j * (stud_diameter + y_margin)) + stud_diameter/2
+            
+            # Create stud points
+            center = gmsh.model.geo.addPoint(x_center, y_center, height, lc)
+            p1_stud = gmsh.model.geo.addPoint(x_center + stud_diameter/2, y_center, height, lc)
+            p2_stud = gmsh.model.geo.addPoint(x_center, y_center + stud_diameter/2, height, lc)
+            p3_stud = gmsh.model.geo.addPoint(x_center - stud_diameter/2, y_center, height, lc)
+            p4_stud = gmsh.model.geo.addPoint(x_center, y_center - stud_diameter/2, height, lc)
+            
+            # Create stud arcs
+            arc1 = gmsh.model.geo.addCircleArc(p1_stud, center, p2_stud)
+            arc2 = gmsh.model.geo.addCircleArc(p2_stud, center, p3_stud)
+            arc3 = gmsh.model.geo.addCircleArc(p3_stud, center, p4_stud)
+            arc4 = gmsh.model.geo.addCircleArc(p4_stud, center, p1_stud)
+            
+            # Create stud surface
+            stud_loop = gmsh.model.geo.addCurveLoop([arc1, arc2, arc3, arc4])
+            stud_surface = gmsh.model.geo.addPlaneSurface([stud_loop])
+            stud_surfaces.append(stud_surface)
+    
+    # Extrude studs
+    for surface in stud_surfaces:
+        gmsh.model.geo.extrude([(2, surface)], 0, 0, stud_height)
+    
+    gmsh.model.geo.synchronize()
+    
+    # Mesh settings
+    gmsh.option.setNumber("Mesh.Algorithm", 6)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMin", lc)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", lc)
+    
+    gmsh.model.mesh.generate(3)
+    gmsh.write("mesh/lego_brick.msh")
+    nodes = gmsh.model.mesh.getNodes()
+    nb_nodes = len(nodes[0])
+    
+    gmsh.write(f"mesh/lego_brick_{nb_nodes}.msh")
+    gmsh.fltk.run()
+    gmsh.finalize()
+
+
+
+
+
 import numpy as np
-import pygalmesh
 if __name__ == '__main__':
 
 
-    mesh_type = "good"
+    mesh_type = "lego"
     input_stl_file = "mesh/liver_lowres.stl"
 
 
@@ -393,9 +539,12 @@ if __name__ == '__main__':
             mesh_stl_with_char_length(input_stl_file, i)
             gmsh.finalize()
             print("STL mode")
-    else:
-        create_beam_stl(0, -1, 10, 1, -1, 1, 'mesh/beam.stl')
-
-        sys.exit(1)
-
+    elif mesh_type == "zigzag":
+        gmsh.initialize(sys.argv)
+        gmsh.model.add("zigzag")
+        create_high_freq_2D()
+        gmsh.finalize()
+    elif mesh_type == "lego":
+        create_lego_brick(length=10, width=5, height=1, stud_height=5,
+                     n_studs_x=6, n_studs_y=3, stud_diameter=0.8, lc=0.8)
 
