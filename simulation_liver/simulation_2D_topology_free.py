@@ -1,5 +1,4 @@
-from tabnanny import check
-from turtle import position
+
 
 from networkx import draw
 import Sofa
@@ -83,6 +82,13 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
+        self.surf = self.exactSolution.addChild('Surf')
+        self.surf.addObject('MeshGmshLoader', name='loader', filename='mesh/lego_for_collision.msh')
+        self.surf.addObject('MeshTopology', src='@loader')
+        self.surf.addObject('MechanicalObject', src='@loader')
+        self.surf.addObject('TriangleOctreeModel')
+        self.surf.addObject('BarycentricMapping')
+
         self.exactSolution.addChild("visual")
         self.exactSolution.visual.addObject('OglModel', src='@../grid', color='0 1 1 0.5')
         self.exactSolution.visual.addObject('IdentityMapping', input='@../DOFs', output='@./')
@@ -107,6 +113,13 @@ class AnimationStepController(Sofa.Core.Controller):
         #self.MO1_LR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
         self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
+
+        self.surf_LR = self.LowResSolution.addChild('Surf')
+        self.surf_LR.addObject('MeshGmshLoader', name='loader', filename='mesh/lego_for_collision.msh')
+        self.surf_LR.addObject('MeshTopology', src='@loader')
+        self.surf_LR.addObject('MechanicalObject', src='@loader')
+        self.surf_LR.addObject('TriangleOctreeModel')
+        self.surf_LR.addObject('BarycentricMapping')
 
 
         # self.trained_nodes = rootNode.addChild('SparseCoarseMesh')

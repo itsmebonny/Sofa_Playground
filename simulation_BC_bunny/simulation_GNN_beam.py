@@ -20,7 +20,7 @@ from parameters_2D import p_grid, p_grid_LR
 class AnimationStepController(Sofa.Core.Controller):
     def __init__(self, node, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
-        self.externalForce = [0, 30, 0]
+        self.externalForce = [0, 50, 0]
         self.object_mass = 0.5
         self.createGraph(node)
         self.root = node
@@ -32,6 +32,7 @@ class AnimationStepController(Sofa.Core.Controller):
     def createGraph(self, rootNode):
 
         rootNode.addObject('RequiredPlugin', name='MultiThreading')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Playback')
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Projective') # Needed to use components [FixedProjectiveConstraint]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Engine.Select') # Needed to use components [BoxROI]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.LinearSolver.Iterative') # Needed to use components [CGLinearSolver]  
@@ -46,48 +47,76 @@ class AnimationStepController(Sofa.Core.Controller):
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Grid') # Needed to use components [RegularGridTopology]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Visual') # Needed to use components [VisualStyle]  
 
+
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Detection.Algorithm')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Detection.Intersection')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Geometry')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Response.Contact')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.IO.Mesh')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.SolidMechanics.Spring')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Constant')
+        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Lagrangian.Solver')
+
         rootNode.addObject('DefaultAnimationLoop')
         rootNode.addObject('DefaultVisualManagerLoop') 
         rootNode.addObject('VisualStyle', name="visualStyle", displayFlags="showBehaviorModels showCollisionModels")
+
+
+
         
         sphereRadius=0.025
 
+        ### Collision model
+        
+        rootNode.addObject('GenericConstraintSolver', maxIterations=1000, tolerance=1e-6)
 
-        filename_high = 'mesh/beam_5080.msh'
-        filename_low = 'mesh/beam_410.msh'
-        stl_filename = 'mesh/beam.stl'
+        rootNode.addObject('CollisionPipeline', name="CollisionPipeline")
+        rootNode.addObject('BruteForceBroadPhase', name="BroadPhase")
+        rootNode.addObject('BVHNarrowPhase', name="NarrowPhase")
+        rootNode.addObject('DefaultContactManager', name="CollisionResponse", response="FrictionContactConstraint")
+        rootNode.addObject('DiscreteIntersection')
 
-        self.loader = rootNode.addObject('MeshSTLLoader', name='loader', filename=stl_filename)
+        filename_high = 'mesh/lego_brick_457.msh'
+        filename_low = 'mesh/lego_brick_2503.msh'
+
+        # Define material properties
+        young_modulus = 5000
+        poisson_ratio = 0.25
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('RegularGridTopology', name='coarseGridHigh', min=p_grid.min, max=p_grid.max, nx=p_grid.res[0], ny=p_grid.res[1], nz=p_grid.res[2])
-        self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
-        self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
-        self.coarse.addObject('SphereCollisionModel', radius=1e-8, group=1, color='1 0 0')
+        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_low, scale3d="1 1 1", translation="0 0 0")
+        self.coarse.addObject('SparseGridTopology', n="60 30 40", position='@grid.position', name='coarseGridHigh')
+        #self.coarse.addObject('SphereCollisionModel', radius=1e-8, group=1, color='1 0 0')
         #self.coarse.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsHigh', output_topology='@triangleTopoHigh')
-
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
         self.exactSolution.addObject('MeshGmshLoader', name='grid', filename=filename_high)
         self.surface_topo = self.exactSolution.addObject('TetrahedronSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.solver = self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="20", printLog=True)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2500, tolerance=1e-08, threshold=1e-08, warmStart=True)
-        self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -1.1 -1.1 0.1 1.1 1.1", drawBoxes=True)
+        self.solver = self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=False)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=3000, tolerance=1e-10, threshold=1e-10, warmStart=True)
+        self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=young_modulus, poissonRatio=poisson_ratio, method="large", updateStiffnessMatrix="false")
+        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 10.1 5.1 0.1", drawBoxes=True)
         self.exactSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -1.1 10.1 1.1 1.1", drawBoxes=True)
+        self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="-0.1 -0.1 5.5 10.1 5.1 6.1", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.exactSolution.addChild("SamplingMapping")
         self.MO_MapHR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
-        #self.MO1_HR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
         self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
+        # self.surf = self.exactSolution.addChild('Surf')
+        # self.surf.addObject('MeshGmshLoader', name='loader', filename='mesh/lego_for_collision.msh')
+        # self.surf.addObject('TetrahedronSetTopologyContainer', name="Container", src='@loader')
+        # self.surf.addObject('MechanicalObject', name="surfaceDOFs")
+        # self.surf.addObject('PointCollisionModel', name="CollisionModel")
+        # self.surf.addObject('IdentityMapping', name="CollisionMapping", input="@../DOFs", output="@surfaceDOFs")
+
+
         self.exactSolution.addChild("visual")
-        self.exactSolution.visual.addObject('OglModel', src='@../../loader', color='0 1 1 0.5')
+        self.exactSolution.visual.addObject('OglModel', src='@../DOFs', color='0 1 0 1')
         self.exactSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
         # same object with different resolution
@@ -97,30 +126,28 @@ class AnimationStepController(Sofa.Core.Controller):
         self.surface_topo_LR = self.LowResSolution.addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@gridLow')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.solver_LR = self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="10", printLog=True)
-        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=2000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
-        self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
-        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -1.1 -1.1 0.1 1.1 1.1", drawBoxes=True)
+        self.solver_LR = self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=False)
+        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=1000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
+        self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=young_modulus, poissonRatio=poisson_ratio, method="large", updateStiffnessMatrix="false")
+        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 10.1 5.1 0.1", drawBoxes=True)
         self.LowResSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ROI2', box="9.9 -1.1 -1.1 10.1 1.1 1.1", drawBoxes=True)
+        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ROI2', box="-0.1 -0.1 5.5 10.1 5.1 6.1", drawBoxes=True)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
-        self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
-        #self.MO1_LR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
-        self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
+        self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_LR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
+        self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_LR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
 
-
-        # self.trained_nodes = rootNode.addChild('SparseCoarseMesh')
-        # self.trained_nodes.addObject('SparseGridTopology', n="10 10 1", position='@../grid.position', name='coarseGridLow')
-        # self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopoLow', src='@coarseGridLow')
-        # self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFsLow', template='Vec3d', src='@coarseGridLow')
-        # self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 1 0')
-        # self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsLow', output_topology='@triangleTopoLow')
+        # self.surf = self.LowResSolution.addChild('Surf')
+        # self.surf.addObject('MeshGmshLoader', name='loader', filename='mesh/lego_for_collision.msh')
+        # self.surf.addObject('TetrahedronSetTopologyContainer', name="Container", src='@loader')
+        # self.surf.addObject('MechanicalObject', name="surfaceDOFs")
+        # self.surf.addObject('PointCollisionModel', name="CollisionModel")
+        # self.surf.addObject('IdentityMapping', name="CollisionMapping", input="@../DOFs", output="@surfaceDOFs")
 
         self.LowResSolution.addChild("visual")
-        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../../loader', color='1 0 0 0.5')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../DOFs', color='1 0 0 1')
         self.LowResSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
 
@@ -146,15 +173,15 @@ class AnimationStepController(Sofa.Core.Controller):
             self.angles = np.linspace(0, 2*np.pi, self.num_versors, endpoint=False)
             self.starting_points = np.linspace(self.angles[0], self.angles[1], len(self.magnitudes), endpoint=False)
         if self.save:
-            if not os.path.exists('npy_BC_beam'):
-                os.mkdir('npy_BC_beam')
+            if not os.path.exists('npy_GNN_lego'):
+                os.mkdir('npy_GNN_lego')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
             self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
             self.directory = self.directory + "_estimation"
             if self.efficient_sampling:
                 self.directory = self.directory + "_efficient"
-            os.makedirs(f'npy_BC_beam/{self.directory}')
-            print(f"Saving data to npy_BC_beam/{self.directory}")
+            os.makedirs(f'npy_GNN_lego/{self.directory}')
+            print(f"Saving data to npy_GNN_lego/{self.directory}")
         self.sampled = False
 
         surface = self.surface_topo
@@ -170,8 +197,10 @@ class AnimationStepController(Sofa.Core.Controller):
         # reset positions
         self.MO1.position.value = self.MO1.rest_position.value
         self.MO2.position.value = self.MO2.rest_position.value
+        self.MO_MapHR.position.value = self.MO_MapHR.rest_position.value
+        self.MO_MapLR.position.value = self.MO_MapLR.rest_position.value
         if self.sampled:
-            print("================== Sampled all magnitudes and versors ==================\n")
+            #print("================== Sampled all magnitudes and versors ==================\n")
             print ("================== The simulation is over ==================\n")
         
         if not self.efficient_sampling:
@@ -194,43 +223,16 @@ class AnimationStepController(Sofa.Core.Controller):
                 self.count_v = 0
                 self.sampled = True
 
-       # Define random box
-        side = np.random.randint(1, 6)
-        if side == 1:
-            x_min = np.random.uniform(2, 9.0)
-            x_max = x_min + 1
-            y_min = np.random.uniform(-1, 0.0)
-            y_max = y_min + 1
-            z_min = -1.01
-            z_max = -0.99
-        elif side == 2:
-            x_min = np.random.uniform(2, 9.0)
-            x_max = x_min + 1
-            y_min = np.random.uniform(-1, 0.0)
-            y_max = y_min + 1
-            z_min = 0.99
-            z_max = 1.01
-        elif side == 3:
-            x_min = np.random.uniform(2, 9.0)
-            x_max = x_min + 1
-            y_min = -1.01
-            y_max = -0.99
-            z_min = np.random.uniform(-1, 0.0)
-            z_max = z_min + 1
-        elif side == 4:
-            x_min = np.random.uniform(2, 9.0)
-            x_max = x_min + 1
-            y_min = 0.99
-            y_max = 1.01
-            z_min = np.random.uniform(-1, 0.0)
-            z_max = z_min + 1
-        elif side == 5:
-            x_min = 9.99
-            x_max = 10.01
-            y_min = np.random.uniform(-1, 0.0)
-            y_max = y_min + 1
-            z_min = np.random.uniform(-1, 0.0)
-            z_max = z_min + 1
+       # Define random box inside this region -0.1 -0.1 5.0 10.1 5.1 6.1
+        side = np.random.uniform(1, 2)
+        x_min = np.random.uniform(0, 10 - side)
+        y_min = np.random.uniform(0, 5 - side)
+        z_min = np.random.uniform(5, 6 - side)
+        x_max = x_min + side
+        y_max = y_min + side
+        z_max = z_min + side
+
+        
         
 
         bbox = [x_min, y_min, z_min, x_max, y_max, z_max]
@@ -246,10 +248,10 @@ class AnimationStepController(Sofa.Core.Controller):
         # Get the intersection with the surface
         indices = list(self.cff_box.indices.value)
         indices = list(set(indices).intersection(set(self.idx_surface)))
-        print(f"Number of nodes in the high resolution solution: {len(indices)}")
+        #print(f"Number of nodes in the high resolution solution: {len(indices)}")
         indices_LR = list(self.cff_box_LR.indices.value)
         indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
-        print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
+        #print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.cff.init()
@@ -262,7 +264,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         indices_training = np.where((self.MO_MapLR.rest_position.value[:, 0] >= x_min) & (self.MO_MapLR.rest_position.value[:, 0] <= x_max) & (self.MO_MapLR.rest_position.value[:, 1] >= y_min) & (self.MO_MapLR.rest_position.value[:, 1] <= y_max) & (self.MO_MapLR.rest_position.value[:, 2] >= z_min) & (self.MO_MapLR.rest_position.value[:, 2] <= z_max))[0]
 
-        print(f"Number of nodes in the training set: {len(indices_training)}")
+        #print(f"Number of nodes in the training set: {len(indices_training)}")
 
         self.bounding_box = {"x_min": x_min, "x_max": x_max, "y_min": y_min, "y_max": y_max, "z_min": z_min, "z_max": z_max}
         self.versor_rounded = [round(i, 4) for i in self.versor]
@@ -272,10 +274,10 @@ class AnimationStepController(Sofa.Core.Controller):
         for i in range(len(indices_training)):
             self.indices_BC[i] = int(indices_training[i])
 
-        print(f"Bounding box: [{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}]")
-        print(f"Side: {side}")
+        #print(f"Bounding box: [{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}]")
+        #print(f"Side: {side}")
         if indices_training.size == 0:
-            print("Empty intersection")
+            #print("Empty intersection")
             self.bad_sample = True
         self.start_time = process_time()
 
@@ -283,19 +285,19 @@ class AnimationStepController(Sofa.Core.Controller):
 
     def onAnimateEndEvent(self, event):
         self.end_time = process_time()
-        print("Computation time for 1 time step: ", self.end_time - self.start_time)
-        print("External force: ", np.linalg.norm(self.externalForce))
+        #print("Computation time for 1 time step: ", self.end_time - self.start_time)
+        #print("External force: ", np.linalg.norm(self.externalForce))
         U_high = self.compute_displacement(self.MO_MapHR)
+        # U_test = self.compute_displacement(self.MO1)
         U_low = self.compute_displacement(self.MO_MapLR)
-
+        U = self.compute_displacement(self.MO1)
+        # vel_high = self.compute_velocity(self.MO1_LR)
+        # vel_low = self.compute_velocity(self.MO_training)
+        # edges_high = self.compute_edges(self.surface_topo)
         edges_low = self.compute_edges(self.surface_topo_LR)
-        print(f"Displacement: {U_high[44]}")
-        # cut the z component
-        # U_high = U_high[:, :2]
-            # U_low = U_low[:, :2]
-    
+       
         if self.save and self.bad_sample == False:
-            self.tmp_dir = f'npy_BC_beam/{self.directory}/sample_{self.iteration}'
+            self.tmp_dir = f'npy_GNN_lego/{self.directory}/sample_{self.iteration}'
             if not os.path.exists(self.tmp_dir):
                 os.makedirs(self.tmp_dir)
             else:
@@ -304,13 +306,15 @@ class AnimationStepController(Sofa.Core.Controller):
             np.save(f'{self.tmp_dir}/high_res_displacement.npy', U_high)
             np.save(f'{self.tmp_dir}/low_res_displacement.npy', U_low)
             np.save(f'{self.tmp_dir}/edges_low.npy', edges_low)
+            np.save(f'{self.tmp_dir}/exact_displacement.npy', U)
             #save in a JSON file the bounding box and the force info with the structure Iteration -> Bounding box -> Force info and close the file
             with open(f'{self.tmp_dir}/info.json', 'w') as f:
                 json.dump({'iteration': self.iteration, 'bounding_box': self.bounding_box, 'force_info': self.force_info, 'indices_BC': self.indices_BC}, f)
 
             
-            print(f"Saved data to {self.tmp_dir}")
+            #print(f"Saved data to {self.tmp_dir}")
             self.iteration += 1
+
 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
@@ -372,6 +376,7 @@ def createScene(rootNode, *args, **kwargs):
 
 def main():
     import Sofa.Gui
+    from tqdm import tqdm
     SofaRuntime.importPlugin("Sofa.GL.Component.Rendering3D")
     SofaRuntime.importPlugin("Sofa.GL.Component.Shader")
     SofaRuntime.importPlugin("Sofa.Component.StateContainer")
@@ -382,15 +387,33 @@ def main():
     SofaRuntime.importPlugin("Sofa.Component.Engine.Select")
     SofaRuntime.importPlugin("Sofa.Component.SolidMechanics.FEM.Elastic")
 
+    USE_GUI = False
+
     root=Sofa.Core.Node("root")
     createScene(root)
     Sofa.Simulation.init(root)
 
-    Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
-    Sofa.Gui.GUIManager.createGUI(root, __file__)
-    Sofa.Gui.GUIManager.SetDimension(800, 600)
-    Sofa.Gui.GUIManager.MainLoop(root)
-    Sofa.Gui.GUIManager.closeGUI()
+    if not USE_GUI:
+        training_samples = 8000
+        validation_samples = 10
+        test_samples = 300
+        for iteration in tqdm(range(training_samples)):
+            Sofa.Simulation.animate(root, root.dt.value)
+        print("Training samples generated")
+        for iteration in tqdm(range(validation_samples)):
+            Sofa.Simulation.animate(root, root.dt.value)
+        print("Validation samples generated")
+        for iteration in tqdm(range(test_samples)):
+            Sofa.Simulation.animate(root, root.dt.value)
+        print("Test samples generated")
+
+        
+    else:
+        Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
+        Sofa.Gui.GUIManager.createGUI(root, __file__)
+        Sofa.Gui.GUIManager.SetDimension(800, 600)
+        Sofa.Gui.GUIManager.MainLoop(root)
+        Sofa.Gui.GUIManager.closeGUI()
 
 
 if __name__ == '__main__':

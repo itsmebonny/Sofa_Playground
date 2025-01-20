@@ -417,96 +417,65 @@ def create_high_freq_2D(zigzag_amplitude=0.7, x_min=0, y_min=-1, x_max=10, y_max
 
 
 def create_lego_brick(length=10, width=5, height=1, stud_height=0.5, 
-                     n_studs_x=4, n_studs_y=2, stud_diameter=0.5, lc=0.2):
-    """
-    Create a LEGO-like brick
-    length, width: base rectangle dimensions
-    height: base height
-    stud_height: height of studs
-    n_studs_x: number of studs along length
-    n_studs_y: number of studs along width
-    stud_diameter: diameter of each stud
-    lc: mesh characteristic length
-    """
+                     n_studs_x=4, n_studs_y=2, stud_size=0.5, lc=0.2):
     gmsh.initialize()
     gmsh.model.add("lego_brick")
     
-    # Input validation
-    if stud_diameter * n_studs_x > length or stud_diameter * n_studs_y > width:
-        raise ValueError("Too many studs for given dimensions")
+    # Switch to OpenCASCADE CAD kernel
+    gmsh.option.setNumber("Geometry.OCCAutoFix", 1)
     
-    # Create base rectangle
-    p1 = gmsh.model.geo.addPoint(0, 0, 0, lc)
-    p2 = gmsh.model.geo.addPoint(length, 0, 0, lc)
-    p3 = gmsh.model.geo.addPoint(length, width, 0, lc)
-    p4 = gmsh.model.geo.addPoint(0, width, 0, lc)
-    
-    # Create base outline
-    l1 = gmsh.model.geo.addLine(p1, p2)
-    l2 = gmsh.model.geo.addLine(p2, p3)
-    l3 = gmsh.model.geo.addLine(p3, p4)
-    l4 = gmsh.model.geo.addLine(p4, p1)
-    
-    # Create base surface
-    base_loop = gmsh.model.geo.addCurveLoop([l1, l2, l3, l4])
-    base_surface = gmsh.model.geo.addPlaneSurface([base_loop])
-    
-    # Extrude base
-    base_volume = gmsh.model.geo.extrude([(2, base_surface)], 0, 0, height)
+    # Create base brick
+    box = gmsh.model.occ.addBox(0, 0, 0, length, width, height)
     
     # Calculate stud spacing
-    x_margin = (length - (n_studs_x * stud_diameter)) / (n_studs_x + 1)
-    y_margin = (width - (n_studs_y * stud_diameter)) / (n_studs_y + 1)
+    x_margin = (length - (n_studs_x * stud_size)) / (n_studs_x + 1)
+    y_margin = (width - (n_studs_y * stud_size)) / (n_studs_y + 1)
     
-    # Create studs
-    stud_surfaces = []
+    # Create studs using OpenCASCADE
+    studs = []
     for i in range(n_studs_x):
         for j in range(n_studs_y):
-            # Calculate stud center
-            x_center = x_margin + (i * (stud_diameter + x_margin)) + stud_diameter/2
-            y_center = y_margin + (j * (stud_diameter + y_margin)) + stud_diameter/2
-            
-            # Create stud points
-            center = gmsh.model.geo.addPoint(x_center, y_center, height, lc)
-            p1_stud = gmsh.model.geo.addPoint(x_center + stud_diameter/2, y_center, height, lc)
-            p2_stud = gmsh.model.geo.addPoint(x_center, y_center + stud_diameter/2, height, lc)
-            p3_stud = gmsh.model.geo.addPoint(x_center - stud_diameter/2, y_center, height, lc)
-            p4_stud = gmsh.model.geo.addPoint(x_center, y_center - stud_diameter/2, height, lc)
-            
-            # Create stud arcs
-            arc1 = gmsh.model.geo.addCircleArc(p1_stud, center, p2_stud)
-            arc2 = gmsh.model.geo.addCircleArc(p2_stud, center, p3_stud)
-            arc3 = gmsh.model.geo.addCircleArc(p3_stud, center, p4_stud)
-            arc4 = gmsh.model.geo.addCircleArc(p4_stud, center, p1_stud)
-            
-            # Create stud surface
-            stud_loop = gmsh.model.geo.addCurveLoop([arc1, arc2, arc3, arc4])
-            stud_surface = gmsh.model.geo.addPlaneSurface([stud_loop])
-            stud_surfaces.append(stud_surface)
+            x_start = x_margin + (i * (stud_size + x_margin))
+            y_start = y_margin + (j * (stud_size + y_margin))
+            stud = gmsh.model.occ.addBox(x_start, y_start, height, 
+                                       stud_size, stud_size, stud_height)
+            studs.append(stud)
     
-    # Extrude studs
-    for surface in stud_surfaces:
-        gmsh.model.geo.extrude([(2, surface)], 0, 0, stud_height)
+    # Fuse all volumes
+    if studs:
+        out, _ = gmsh.model.occ.fuse([(3, box)], [(3, s) for s in studs])
     
-    gmsh.model.geo.synchronize()
+    # Synchronize before meshing
+    gmsh.model.occ.synchronize()
     
     # Mesh settings
     gmsh.option.setNumber("Mesh.Algorithm", 6)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", lc)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", lc)
     
+    # Generate full 3D mesh once
     gmsh.model.mesh.generate(3)
-    gmsh.write("mesh/lego_brick.msh")
+    
+    # Save volume mesh
+    gmsh.write(f"mesh/lego_brick.msh")
     nodes = gmsh.model.mesh.getNodes()
     nb_nodes = len(nodes[0])
-    
     gmsh.write(f"mesh/lego_brick_{nb_nodes}.msh")
+    
+    # Save surface mesh by getting boundary
+    # Get all surface elements without regenerating mesh
+    surface_dimTags = gmsh.model.getBoundary([(3, box)], combined=False, oriented=True)
+    
+    # Create a new physical group for surfaces
+    surface_group = gmsh.model.addPhysicalGroup(2, [tag for dim, tag in surface_dimTags])
+    
+    # Save only the surface elements
+    gmsh.option.setNumber("Mesh.SaveAll", 0)  # Only save physical groups
+    gmsh.write(f"mesh/lego_for_collision.msh")
+    
+    # Show result
     gmsh.fltk.run()
     gmsh.finalize()
-
-
-
-
 
 import numpy as np
 if __name__ == '__main__':
@@ -546,5 +515,5 @@ if __name__ == '__main__':
         gmsh.finalize()
     elif mesh_type == "lego":
         create_lego_brick(length=10, width=5, height=1, stud_height=5,
-                     n_studs_x=6, n_studs_y=3, stud_diameter=0.8, lc=0.8)
+                     n_studs_x=6, n_studs_y=3, stud_size=1, lc=0.5)
 
