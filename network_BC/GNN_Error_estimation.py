@@ -184,7 +184,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_hf/2025-01-10_10:42:13_validation_250_nodes'
+            self.validation_dir = 'npy_GNN_lego/2025-01-28_17:32:36_validation'
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_data_list = self.val_data_graph.data_list
         self.data_list = self.data_graph.data_list
@@ -251,7 +251,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_hf/2025-01-10_01:41:13_training_250_nodes'
+    data_dir = 'npy_GNN_lego/2025-01-28_13:17:04_training'
     trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
