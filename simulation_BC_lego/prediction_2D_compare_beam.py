@@ -9,6 +9,11 @@ from sklearn.preprocessing import MinMaxScaler
 from parameters_2D import p_grid, p_grid_LR
 # add network path to the python path
 import torch as th
+th.set_warn_always(False)
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 import sys
 import json
@@ -45,7 +50,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
         self.save_for_images = False
 
-        self.network = Trainer('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001, 500)
+        self.network = TrainerFC('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001, 500)
         self.network.load_model('models_BC/model_2025-01-28_20:45:34_FC_lego.pth')
 
         self.networkFC = TrainerFC('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001,  500)
@@ -373,14 +378,14 @@ class AnimationStepController(Sofa.Core.Controller):
         # Get the intersection with the surface
         indices = list(self.cff_box.indices.value)
         indices = list(set(indices).intersection(set(self.idx_surface)))
-        print(f"Number of nodes in the high resolution solution: {len(indices)}")
+        # print(f"Number of nodes in the high resolution solution: {len(indices)}")
         indices_LR = list(self.cff_box_LR.indices.value)
         indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
-        print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
+        # print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
 
         indices_FC = list(self.cff_box_LR_FC.indices.value)
         indices_FC = list(set(indices_FC).intersection(set(self.idx_surface_FC)))
-        print(f"Number of nodes in the low resolution solution: {len(indices_FC)}")
+        # print(f"Number of nodes in the low resolution solution: {len(indices_FC)}")
 
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
@@ -400,17 +405,17 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.bounding_box = {"x_min": x_min, "x_max": x_max, "y_min": y_min, "y_max": y_max, "z_min": z_min, "z_max": z_max}
         self.versor_rounded = [round(i, 4) for i in self.versor]
-        print(f"External force: {self.versor_rounded}")
+        # print(f"External force: {self.versor_rounded}")
         self.versor_rounded = list(self.versor_rounded)
         self.force_info = {"magnitude": round(self.magnitude, 4), "versor": self.versor_rounded}
         self.indices_BC = list(indices_training)
         for i in range(len(indices_training)):
             self.indices_BC[i] = int(indices_training[i])
 
-        print(f"Bounding box: [{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}]")
+        # print(f"Bounding box: [{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}]")
 
-        print(f"Bounding box: [{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}]")
-        print(f"Side: {side}")
+        # print(f"Bounding box: [{x_min}, {y_min}, {z_min}, {x_max}, {y_max}, {z_max}]")
+        # print(f"Side: {side}")
         if indices_LR == [] or indices == []:
             print("Empty intersection")
             self.bad_sample = True
@@ -422,12 +427,12 @@ class AnimationStepController(Sofa.Core.Controller):
         
 
         self.end_time = process_time()
-        print("Computation time for 1 time step: ", self.end_time - self.start_time)
-        print("External force: ", np.linalg.norm(self.externalForce))
+        # print("Computation time for 1 time step: ", self.end_time - self.start_time)
+        # print("External force: ", np.linalg.norm(self.externalForce))
         U_low = self.compute_displacement(self.MO_MapLR)
         U_low_FC = self.compute_displacement(self.MO_MapLR_FC)
         edges_low = self.compute_edges(self.surface_topo_LR)
-        print("U_low_FC: ", U_low_FC.shape)
+        # print("U_low_FC: ", U_low_FC.shape)
 
 
         boundary_nodes = np.zeros((U_low.shape[0], 4))
@@ -451,7 +456,7 @@ class AnimationStepController(Sofa.Core.Controller):
         boundary_conditions[-1] = self.magnitude
         data_FC = np.append(U_low_FC, boundary_conditions)
         data_FC = th.tensor(data_FC, dtype=th.float32).T
-        U = self.network.predict(data).cpu().numpy()
+        U = self.network.predict(data_FC).cpu().numpy()
         U_FC = self.networkFC.predict(data_FC).cpu().numpy()
   
 
@@ -536,8 +541,8 @@ class AnimationStepController(Sofa.Core.Controller):
         if not self.bad_sample:
             self.compute_metrics()
             self.compute_metrics_FC()
-        print("Computation time for 1 time step: ", self.end_time - self.start_time)
-        print("External force: ", np.linalg.norm(self.externalForce))
+        # print("Computation time for 1 time step: ", self.end_time - self.start_time)
+        # print("External force: ", np.linalg.norm(self.externalForce))
 
     def interpolate_vector_field(self, old_grid, vector_field, new_grid):
         
@@ -746,6 +751,7 @@ def createScene(rootNode, *args, **kwargs):
 
 def main():
     import Sofa.Gui
+    from tqdm import tqdm
     SofaRuntime.importPlugin("Sofa.GL.Component.Rendering3D")
     SofaRuntime.importPlugin("Sofa.GL.Component.Shader")
     SofaRuntime.importPlugin("Sofa.Component.StateContainer")
@@ -755,20 +761,19 @@ def main():
     SofaRuntime.importPlugin("Sofa.Component.MechanicalLoad")
     SofaRuntime.importPlugin("Sofa.Component.Engine.Select")
     SofaRuntime.importPlugin("Sofa.Component.SolidMechanics.FEM.Elastic")
-    from tqdm import tqdm
-
-    USE_GUI = False
 
     root=Sofa.Core.Node("root")
-    createScene(root)
+    rootNode, asc = createScene(root)
     Sofa.Simulation.init(root)
 
+    USE_GUI = False
     if not USE_GUI:
-        training_samples = 100
+        training_samples = 200
         validation_samples = 10
         test_samples = 300
         for iteration in tqdm(range(training_samples)):
             Sofa.Simulation.animate(root, root.dt.value)
+            
         # print("Training samples generated")
         # for iteration in tqdm(range(validation_samples)):
         #     Sofa.Simulation.animate(root, root.dt.value)
@@ -776,6 +781,7 @@ def main():
         # for iteration in tqdm(range(test_samples)):
         #     Sofa.Simulation.animate(root, root.dt.value)
         # print("Test samples generated")
+        asc.close()
 
         
     else:
@@ -784,7 +790,7 @@ def main():
         Sofa.Gui.GUIManager.SetDimension(800, 600)
         Sofa.Gui.GUIManager.MainLoop(root)
         Sofa.Gui.GUIManager.closeGUI()
-
+        asc.close()
 
 if __name__ == '__main__':
     main()

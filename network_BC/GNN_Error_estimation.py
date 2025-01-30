@@ -92,57 +92,126 @@ class MixedLoss(nn.Module):
     
 # create class that loads the data from the npy files and manipulates them to prepare them for training for pytorch geometric
 
+# class DataGraph(Dataset):
+#     def __init__(self, data_dir):
+#         self.data_dir = data_dir
+#         self.data_list = DataGraph.create_data_list(data_dir)
+
+        
+#     def __cat_dim__(self, key, value, *args, **kwargs):
+#         return None 
+    
+#         # load the data
+#     def get_subdirectories(directory):
+#         return [f.path for f in os.scandir(directory) if f.is_dir()]
+    
+#     def create_data_list(directory):
+#         samples = DataGraph.get_subdirectories(directory)
+#         n_samples = len(samples)
+#         data_list = []
+#         count = 0
+#         for i in tqdm(range(n_samples)):
+#             skip = False
+#             tmp_dir = samples[i]
+#             iteration_number = tmp_dir.split('/')[-1].split('_')[-1]
+#             high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy")
+#             low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy")
+#             edge_index = np.load(f"{tmp_dir}/edges_low.npy")[:, :2].T
+#             edge_attr = np.load(f"{tmp_dir}/edges_low.npy")[:, 2]
+
+#             #load info.json 
+#             with open(f"{tmp_dir}/info.json") as f:
+#                 info = json.load(f)
+#                 bounding_box = info['bounding_box']
+#                 force_info = info['force_info']
+#                 indices_BC = info['indices_BC']
+#                 if indices_BC == []:
+#                     skip = True
+#                     count += 1
+#             if not skip:
+#                 boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
+#                 boundary_conditions[indices_BC, :3] = force_info['versor']
+#                 boundary_conditions[indices_BC, 3] = force_info['magnitude']
+
+
+#                 node_features = np.hstack((low_res_displacement, boundary_conditions))
+#                 y = high_res_displacement - low_res_displacement
+#                 y = y.flatten()
+#                 data = Data(x=th.tensor(node_features, dtype=th.float32), edge_index=th.tensor(edge_index, dtype=th.long), edge_attr=th.tensor(edge_attr, dtype=th.float32), y=th.tensor(y, dtype=th.float32))
+#                 data_list.append(data)
+#         print(f"Skipped {count} samples, this dataset has a percentage of {count/n_samples*100}% of skipped samples")
+#         return data_list
+
+
 class DataGraph(Dataset):
     def __init__(self, data_dir):
         self.data_dir = data_dir
-        self.data_list = DataGraph.create_data_list(data_dir)
-
-        
-    def __cat_dim__(self, key, value, *args, **kwargs):
-        return None 
+        self.samples = self.get_subdirectories(data_dir)
+        self.n_samples = len(self.samples)
+        # Load first sample to get shape info
+        self._first_sample = self.__getitem__(0)
     
-        # load the data
+    @staticmethod
     def get_subdirectories(directory):
         return [f.path for f in os.scandir(directory) if f.is_dir()]
     
-    def create_data_list(directory):
-        samples = DataGraph.get_subdirectories(directory)
-        n_samples = len(samples)
-        data_list = []
-        count = 0
-        for i in tqdm(range(n_samples)):
-            skip = False
-            tmp_dir = samples[i]
-            iteration_number = tmp_dir.split('/')[-1].split('_')[-1]
-            high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy")
-            low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy")
-            edge_index = np.load(f"{tmp_dir}/edges_low.npy")[:, :2].T
-            edge_attr = np.load(f"{tmp_dir}/edges_low.npy")[:, 2]
-
-            #load info.json 
-            with open(f"{tmp_dir}/info.json") as f:
-                info = json.load(f)
-                bounding_box = info['bounding_box']
-                force_info = info['force_info']
-                indices_BC = info['indices_BC']
-                if indices_BC == []:
-                    skip = True
-                    count += 1
-            if not skip:
-                boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
-                boundary_conditions[indices_BC, :3] = force_info['versor']
-                boundary_conditions[indices_BC, 3] = force_info['magnitude']
-
-
-                node_features = np.hstack((low_res_displacement, boundary_conditions))
-                y = high_res_displacement - low_res_displacement
-                y = y.flatten()
-                data = Data(x=th.tensor(node_features, dtype=th.float32), edge_index=th.tensor(edge_index, dtype=th.long), edge_attr=th.tensor(edge_attr, dtype=th.float32), y=th.tensor(y, dtype=th.float32))
-                data_list.append(data)
-        print(f"Skipped {count} samples, this dataset has a percentage of {count/n_samples*100}% of skipped samples")
-        return data_list
-
+    def __len__(self):
+        return self.n_samples
     
+    @property
+    def nb_nodes(self):
+        return self._first_sample.x.shape[0]
+    
+    @property
+    def nb_features(self):
+        return self._first_sample.x.shape[1]
+    
+    def __getitem__(self, idx):
+        tmp_dir = self.samples[idx]
+        
+        # Load arrays with memory mapping
+        high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy", mmap_mode='r')
+        low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy", mmap_mode='r')
+        edges = np.load(f"{tmp_dir}/edges_low.npy", mmap_mode='r')
+        
+        edge_index = edges[:, :2].T.copy()
+        edge_attr = edges[:, 2].copy()
+
+        # Load JSON data
+        with open(f"{tmp_dir}/info.json") as f:
+            info = json.load(f)
+            force_info = info['force_info']
+            indices_BC = info['indices_BC']
+        
+        # Create boundary conditions
+        boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
+        if indices_BC:
+            boundary_conditions[indices_BC, :3] = force_info['versor']
+            boundary_conditions[indices_BC, 3] = force_info['magnitude']
+
+        # Prepare features and target
+        node_features = np.hstack((low_res_displacement.copy(), boundary_conditions))
+        y = high_res_displacement - low_res_displacement
+        
+        # Create data object
+        data = Data(
+            x=th.tensor(node_features, dtype=th.float32),
+            edge_index=th.tensor(edge_index, dtype=th.long),
+            edge_attr=th.tensor(edge_attr, dtype=th.float32),
+            y=th.tensor(y.flatten(), dtype=th.float32)
+        )
+        
+        return data
+
+class Trainer:
+    def __init__(self, data_dir, batch_size, learning_rate, num_epochs):
+        self.data_graph = DataGraph(data_dir)
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.num_epochs = num_epochs
+        self.nb_nodes = self.data_graph.nb_nodes
+
+
 class EarlyStopper:
     def __init__(self, patience=1, min_delta=0, lr = 0.001):
         self.patience = patience
@@ -168,69 +237,127 @@ class EarlyStopper:
 
 
 class Trainer:
-    # Trainer class that trains the model
-    def __init__(self, data_dir, batch_size, lr, epochs):
+    def __init__(self, data_dir, batch_size, learning_rate, num_epochs):
         self.data_dir = data_dir
         self.batch_size = batch_size
-        self.lr = lr
-        self.epochs = epochs
-
+        self.lr = learning_rate
+        self.epochs = num_epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
+        
+        # Initialize datasets
         self.data_graph = DataGraph(self.data_dir)
-        self.nb_nodes = self.data_graph.data_list[0].x.shape[0]
-        self.nb_features = self.data_graph.data_list[0].x.shape[1]
-        print(f"Number of features: {self.nb_features}")
-        print(f"Number of nodes: {self.nb_nodes}")
+        self.nb_nodes = self.data_graph.nb_nodes
+        self.nb_features = self.data_graph.nb_features
+        
+        # Create data loaders with persistent workers
+        self.loader = DataLoader(
+            self.data_graph, 
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=4,
+            persistent_workers=True,
+            pin_memory=True
+        )
+        
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
             self.validation_dir = 'npy_GNN_lego/2025-01-28_17:32:36_validation'
+            
         self.val_data_graph = DataGraph(self.validation_dir)
-        self.val_data_list = self.val_data_graph.data_list
-        self.data_list = self.data_graph.data_list
-        self.loader = DataLoader(self.data_list, batch_size=self.batch_size, shuffle=True)
-        self.val_loader = DataLoader(self.val_data_list, batch_size=self.batch_size, shuffle=True)
+        self.val_loader = DataLoader(
+            self.val_data_graph,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=4,
+            persistent_workers=True,
+            pin_memory=True
+        )
         self.model = Net(self.nb_nodes, self.nb_features).to(self.device)
         self.criterion = RMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=15, min_lr=1e-8)
-
-    
+        self.train_losses = []
+        self.val_losses = []
+        self.train_mse = []
+        self.val_mse = []
+        
     def train(self):
         self.model.train()
         early_stopper = EarlyStopper(patience=60, min_delta=1e-8, lr=self.lr)
         for epoch in range(self.epochs):
             running_loss = 0.0
+            running_mse = 0.0
             for i, data in enumerate(tqdm(self.loader)):
                 x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
                 self.optimizer.zero_grad()
                 out = self.model(x, edge_index, edge_attr)
                 y = y.view(-1, self.nb_nodes*3)
                 loss = self.criterion(out, y)
+                mse = F.mse_loss(out, y)
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.item()
-            print(f"Epoch {epoch+1}, Loss: {running_loss/len(self.loader)}")
+                running_mse += mse.item()
+                
+            epoch_loss = running_loss/len(self.loader)
+            epoch_mse = running_mse/len(self.loader)
+            self.train_losses.append(epoch_loss)
+            self.train_mse.append(epoch_mse)
+            
+            print(f"Epoch {epoch+1}, Loss: {epoch_loss}")
             print(f"Learning rate: {self.optimizer.param_groups[0]['lr']}")
-            val_loss = self.validate()
-            if val_loss is not None:
-                if early_stopper.early_stop(val_loss, self.optimizer.param_groups[0]['lr']):
-                    print("Early stopping")
-                    break
-                self.scheduler.step(val_loss)
+            
+            val_loss, val_mse = self.validate()
+            self.val_losses.append(val_loss)
+            self.val_mse.append(val_mse)
+            
+            if early_stopper.early_stop(val_loss, self.optimizer.param_groups[0]['lr']):
+                print("Early stopping")
+                break
+            self.scheduler.step(val_loss)
+            
+        self.save_plots()
         
     def validate(self):
         self.model.eval()
         running_loss = 0.0
+        running_mse = 0.0
         with th.no_grad():
             for i, data in enumerate(self.val_loader):
                 x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
                 out = self.model(x, edge_index, edge_attr)
                 y = y.view(-1, self.nb_nodes*3)
                 loss = self.criterion(out, y)
+                mse = F.mse_loss(out, y)
                 running_loss += loss.item()
-        print(f"Validation Loss: {running_loss/len(self.val_loader)}")
-        return running_loss/len(self.val_loader)
+                running_mse += mse.item()
+        return running_loss/len(self.val_loader), running_mse/len(self.val_loader)
+    
+    def save_plots(self, model_dir):
+        import matplotlib.pyplot as plt
+        
+        # Create loss plot
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.train_losses, label='Training Loss')
+        plt.plot(self.val_losses, label='Validation Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Loss')
+        plt.legend()
+        plt.savefig(f'Images/loss_{model_dir}.png')
+        plt.close()
+        
+        # Create MSE plot
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.train_mse, label='Training MSE')
+        plt.plot(self.val_mse, label='Validation MSE')
+        plt.xlabel('Epoch')
+        plt.ylabel('MSE')
+        plt.title('Training and Validation MSE')
+        plt.legend()
+        plt.savefig(f'Images/mse_{model_dir}.png')
+        plt.close()
     
     def save_model(self, model_dir):
         if not os.path.exists('models_BC'):
