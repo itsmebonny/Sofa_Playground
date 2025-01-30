@@ -305,19 +305,20 @@ class Trainer:
             self.train_losses.append(epoch_loss)
             self.train_mse.append(epoch_mse)
             
-            print(f"Epoch {epoch+1}, Loss: {epoch_loss}")
-            print(f"Learning rate: {self.optimizer.param_groups[0]['lr']}")
+            
             
             val_loss, val_mse = self.validate()
             self.val_losses.append(val_loss)
             self.val_mse.append(val_mse)
+            print(f"Epoch {epoch+1}, Loss: {epoch_loss}, Validation Loss: {val_loss}")
+            print(f"Learning rate: {self.optimizer.param_groups[0]['lr']}")
             
             if early_stopper.early_stop(val_loss, self.optimizer.param_groups[0]['lr']):
                 print("Early stopping")
                 break
             self.scheduler.step(val_loss)
             
-        self.save_plots()
+        self.save_plots(f'model_{datetime.now().strftime("%Y-%m-%d_%H:%M:%S")}')
         
     def validate(self):
         self.model.eval()
