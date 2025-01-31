@@ -34,14 +34,14 @@ from torch_geometric.loader import DataLoader
 
 
 class Net(th.nn.Module):
-    def __init__(self, nb_nodes, nb_features):
+    def __init__(self, nb_nodes, nb_features, message_passing=3):
         super(Net, self).__init__()
         self.nb_nodes = nb_nodes
         self.nb_features = nb_features
         self.conv1 = GCNConv(nb_features, 16)
         self.conv_mid = GCNConv(16, 16)
         self.conv2 = GCNConv(16, nb_features)
-        self.repeat = 3
+        self.repeat = message_passing
         self.linear1 = th.nn.Linear(nb_nodes*nb_features, 512) # nb_nodes * final_conv_features
         self.linear2 = th.nn.Linear(512, 512)
         self.linear3 = th.nn.Linear(512, nb_nodes*3) # 225 if 2D, 7500 if 3D
@@ -203,13 +203,7 @@ class DataGraph(Dataset):
         
         return data
 
-class Trainer:
-    def __init__(self, data_dir, batch_size, learning_rate, num_epochs):
-        self.data_graph = DataGraph(data_dir)
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.num_epochs = num_epochs
-        self.nb_nodes = self.data_graph.nb_nodes
+
 
 
 class EarlyStopper:
@@ -237,12 +231,13 @@ class EarlyStopper:
 
 
 class Trainer:
-    def __init__(self, data_dir, batch_size, learning_rate, num_epochs):
+    def __init__(self, data_dir, batch_size, learning_rate, num_epochs, message_passing=3):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.lr = learning_rate
         self.epochs = num_epochs
         self.device = th.device('cuda' if th.cuda.is_available() else 'cpu')
+        self.message_passing = message_passing
         
         # Initialize datasets
         self.data_graph = DataGraph(self.data_dir)
@@ -273,7 +268,7 @@ class Trainer:
             persistent_workers=True,
             pin_memory=True
         )
-        self.model = Net(self.nb_nodes, self.nb_features).to(self.device)
+        self.model = Net(self.nb_nodes, self.nb_features, self.message_passing).to(self.device)
         self.criterion = RMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=15, min_lr=1e-8)
@@ -318,7 +313,7 @@ class Trainer:
                 break
             self.scheduler.step(val_loss)
             
-        self.save_plots(f'model_{datetime.now().strftime("%Y-%m-%d_%H:%M:%S")}')
+        self.save_plots(f'model_{datetime.now().strftime("%Y-%m-%d_%H:%M:%S")}_GNN_passing_{self.message_passing}')
         
     def validate(self):
         self.model.eval()
@@ -380,17 +375,19 @@ class Trainer:
 
 if __name__ == '__main__':
     data_dir = 'npy_GNN_lego/2025-01-28_13:17:04_training'
-    trainer = Trainer(data_dir, 32, 0.001, 500)
+    message_passing = 3
+    trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
-    training_time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GNN_passing_{message_passing}"
     if 'beam' in data_dir:
-        trainer.save_model(f'model_{training_time}_GNN_beam')
+        model_name += '_beam'
     elif '250_nodes' in data_dir:
-        trainer.save_model(f'model_{training_time}_GNN_250_nodes')
+        model_name += '_250_nodes'
     elif 'hf' in data_dir:
-        trainer.save_model(f'model_{training_time}_FC_hf')
-    else:
-        trainer.save_model(f'model_{training_time}_FC')
-    print(f"Model saved as model_{training_time}.pth")
+        model_name += '_hf'
+    elif 'lego' in data_dir:
+        model_name += '_lego'
+    trainer.save_model(model_name)
+    print(f"Model saved as {model_name}.pth")
   
     #summary(model, (1, data.input_size))
