@@ -279,7 +279,7 @@ class Trainer:
         
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=60, min_delta=1e-8, lr=self.lr)
+        early_stopper = EarlyStopper(patience=40, min_delta=1e-8, lr=self.lr)
         for epoch in range(self.epochs):
             running_loss = 0.0
             running_mse = 0.0
@@ -375,7 +375,7 @@ class Trainer:
 
 if __name__ == '__main__':
     data_dir = 'npy_GNN_lego/2025-01-31_01:12:47_training_10k'
-    message_passing = 3
+    message_passing = 5
     trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GNN_passing_{message_passing}"
