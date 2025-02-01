@@ -257,7 +257,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/2025-01-28_17:32:36_validation'
+            self.validation_dir = 'npy_GNN_lego/2025-01-31_09:30:54_validation_10k'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_loader = DataLoader(
@@ -271,7 +271,7 @@ class Trainer:
         self.model = Net(self.nb_nodes, self.nb_features, self.message_passing).to(self.device)
         self.criterion = RMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=15, min_lr=1e-8)
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=30, min_lr=1e-5)
         self.train_losses = []
         self.val_losses = []
         self.train_mse = []
@@ -313,7 +313,7 @@ class Trainer:
                 break
             self.scheduler.step(val_loss)
             
-        self.save_plots(f'model_{datetime.now().strftime("%Y-%m-%d_%H:%M:%S")}_GNN_passing_{self.message_passing}')
+        
         
     def validate(self):
         self.model.eval()
@@ -341,7 +341,7 @@ class Trainer:
         plt.ylabel('Loss')
         plt.title('Training and Validation Loss')
         plt.legend()
-        plt.savefig(f'Images/loss_{model_dir}.png')
+        plt.savefig(f'images/loss_{model_dir}.png')
         plt.close()
         
         # Create MSE plot
@@ -352,7 +352,7 @@ class Trainer:
         plt.ylabel('MSE')
         plt.title('Training and Validation MSE')
         plt.legend()
-        plt.savefig(f'Images/mse_{model_dir}.png')
+        plt.savefig(f'images/mse_{model_dir}.png')
         plt.close()
     
     def save_model(self, model_dir):
@@ -374,7 +374,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/2025-01-28_13:17:04_training'
+    data_dir = 'npy_GNN_lego/2025-01-31_01:12:47_training_10k'
     message_passing = 3
     trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
@@ -388,6 +388,7 @@ if __name__ == '__main__':
     elif 'lego' in data_dir:
         model_name += '_lego'
     trainer.save_model(model_name)
+    trainer.save_plots(model_name)
     print(f"Model saved as {model_name}.pth")
   
     #summary(model, (1, data.input_size))
