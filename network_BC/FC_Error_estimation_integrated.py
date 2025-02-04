@@ -121,10 +121,10 @@ class DataGraph(Dataset):
         high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy", mmap_mode='r')
         low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy", mmap_mode='r')
 
+
         with open(f"{tmp_dir}/info.json") as f:
             info = json.load(f)
             force_info = info['force_info']
-            indices_BC = info['indices_BC']
             bounding_box = info['bounding_box']
         
             # Create boundary conditions with 10 columns: 
@@ -142,10 +142,10 @@ class DataGraph(Dataset):
             #print shapes
        
             target = high_res_displacement - low_res_displacement
-            high_res_displacement = high_res_displacement.flatten()
-            features = np.zeros((high_res_displacement.shape[0]+boundary_conditions.shape[1], 1))
-            features[:high_res_displacement.shape[0], 0] = high_res_displacement
-            features[high_res_displacement.shape[0]:, 0] = boundary_conditions.flatten()
+            low_res_displacement = low_res_displacement.flatten()
+            features = np.zeros((low_res_displacement.shape[0]+boundary_conditions.shape[1], 1))
+            features[:low_res_displacement.shape[0], 0] = low_res_displacement
+            features[low_res_displacement.shape[0]:, 0] = boundary_conditions.flatten()
             #remove last axis of features
             features = np.squeeze(features)
             
@@ -212,7 +212,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/2025-02-03_22:35:15_validation_2k'
+            self.validation_dir = 'npy_GNN_lego/validation_5k'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         
@@ -364,7 +364,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/2025-01-31_13:43:15_training_2k'
+    data_dir = 'npy_GNN_lego/training_5k'
     trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_FC"

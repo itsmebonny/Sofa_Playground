@@ -457,7 +457,7 @@ def main():
     Sofa.Simulation.init(root)
 
     if not USE_GUI:
-        training_samples = 5000
+        training_samples = 1000
         validation_samples = 10
         test_samples = 300
         for iteration in tqdm(range(training_samples)):
