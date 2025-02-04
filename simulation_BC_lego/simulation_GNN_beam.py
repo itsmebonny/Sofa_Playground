@@ -24,7 +24,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.object_mass = 0.5
         self.createGraph(node)
         self.root = node
-        self.save = True
+        self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
@@ -457,7 +457,7 @@ def main():
     Sofa.Simulation.init(root)
 
     if not USE_GUI:
-        training_samples = 2000
+        training_samples = 400
         validation_samples = 10
         test_samples = 300
         for iteration in tqdm(range(training_samples)):

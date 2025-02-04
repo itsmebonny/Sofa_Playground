@@ -212,7 +212,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/2025-01-31_09:30:54_validation_10k'
+            self.validation_dir = 'npy_GNN_lego/2025-02-03_22:35:15_validation_2k'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         
@@ -240,7 +240,7 @@ class Trainer:
         self.criterion = RMSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', factor=0.1, patience=15, min_lr=1e-5
+            self.optimizer, mode='min', factor=0.1, patience=40, min_lr=1e-5
         )
         
         # Initialize metric storage
@@ -252,7 +252,7 @@ class Trainer:
     
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=60, min_delta=1e-8, lr=self.lr)
+        early_stopper = EarlyStopper(patience=50, min_delta=1e-5, lr=self.lr)
     
         for epoch in range(self.epochs):
             running_loss = 0.0
@@ -292,6 +292,7 @@ class Trainer:
             self.val_mse_epoch.append(val_mse)
             
             print(f'Epoch {epoch+1}: Train Loss={epoch_loss:.6f}, Val Loss={val_loss:.6f}')
+            print(f'Learning rate: {self.optimizer.param_groups[0]["lr"]}')
             
             if early_stopper.early_stop(val_loss, self.optimizer.param_groups[0]['lr']):
                 print("Early stopping")
@@ -363,7 +364,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/2025-01-31_01:12:47_training_10k'
+    data_dir = 'npy_GNN_lego/2025-01-31_13:43:15_training_2k'
     trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_FC"
