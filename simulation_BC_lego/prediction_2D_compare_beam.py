@@ -48,13 +48,17 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_error_FC, self.MSE_error_FC = [], []
         self.l2_deformation_FC, self.MSE_deformation_FC = [], []
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
-        self.save_for_images = False
+        self.save_for_images = True
+        self.model_FC = 'models_BC/model_2025-02-03_12:20:29_FC_lego_10k.pth'
+        self.model_GNN = 'models_BC/model_2025-02-01_16:00:15_GNN_passing_3_lego_10k.pth'
+        self.passings = int(self.model_GNN.split('passing_')[1].split('_')[0])
+        self.samples = int(self.model_GNN.split('_')[-1].split('.')[0][:-1])
+        
 
-        self.network = TrainerFC('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001, 500)
-        self.network.load_model('models_BC/model_2025-01-28_20:45:34_FC_lego.pth')
-
+        self.network = Trainer('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001, 500)
+        self.network.load_model(self.model_GNN)
         self.networkFC = TrainerFC('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001,  500)
-        self.networkFC.load_model('models_BC/model_2025-01-28_20:45:34_FC_lego.pth')
+        self.networkFC.load_model(self.model_FC)
         
     def createGraph(self, rootNode):
 
@@ -217,6 +221,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.inputs = []
         self.outputs = []
         self.efficient_sampling = False
+        self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
         if self.efficient_sampling:
             self.count_v = 0
             self.num_versors = 5
@@ -229,7 +234,7 @@ class AnimationStepController(Sofa.Core.Controller):
             if not os.path.exists('npy_GNN_beam'):
                 os.mkdir('npy_GNN_beam')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
-            self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+            
             self.directory = self.directory + "_estimation"
             if self.efficient_sampling:
                 self.directory = self.directory + "_efficient"
@@ -284,6 +289,8 @@ class AnimationStepController(Sofa.Core.Controller):
                 self.count_m = 0
                 self.count_v = 0
                 self.sampled = True
+        if self.save_for_images:
+            self.magnitude = np.random.uniform(90, 100)
 
         def count_intersecting_squares(large_square_points, small_squares):
             """
@@ -441,7 +448,11 @@ class AnimationStepController(Sofa.Core.Controller):
         node_features = np.hstack ((U_low, boundary_nodes))
         edge_index = edges_low[:, :2].T
         edge_attr = edges_low[:, 2]
-        data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_attr)
+        data = Data(
+            x=th.tensor(node_features, dtype=th.float32),
+            edge_index=th.tensor(edge_index, dtype=th.long),
+            edge_attr=th.tensor(edge_attr, dtype=th.float32)
+        )
 
         U_low_FC = U_low_FC.flatten()
         x_min = self.bounding_box["x_min"]
@@ -451,12 +462,18 @@ class AnimationStepController(Sofa.Core.Controller):
         z_min = self.bounding_box["z_min"]
         z_max = self.bounding_box["z_max"]
         boundary_conditions = np.zeros((10))
-        boundary_conditions[:-4] = [x_min, x_max, y_min, y_max, z_min, z_max]
-        boundary_conditions[-4:-1] = self.versor_rounded
-        boundary_conditions[-1] = self.magnitude
+        boundary_conditions[:3] = self.versor_rounded
+        boundary_conditions[3] = round(self.magnitude, 4)
+        boundary_conditions[4] = x_min
+        boundary_conditions[5] = y_min
+        boundary_conditions[6] = z_min
+        boundary_conditions[7] = x_max
+        boundary_conditions[8] = y_max
+        boundary_conditions[9] = z_max
+
         data_FC = np.append(U_low_FC, boundary_conditions)
         data_FC = th.tensor(data_FC, dtype=th.float32).T
-        U = self.network.predict(data_FC).cpu().numpy()
+        U = self.network.predict(data).cpu().numpy()
         U_FC = self.networkFC.predict(data_FC).cpu().numpy()
   
 
@@ -507,20 +524,27 @@ class AnimationStepController(Sofa.Core.Controller):
             if not os.path.exists('images_data'):
                 os.mkdir('images_data')
 
+
+
             if not os.path.exists(f'images_data/{self.directory}'):
-                os.mkdir(f'images_data/{self.directory}')
+                os.mkdir(f'images_data/{self.directory}_{self.passings}_passings_{self.samples}k')
+                self.directory = f'{self.directory}_{self.passings}_passings_{self.samples}k'
 
             ground_truth_displacement = self.MO1.position.value - self.MO1.rest_position.value
             prediction_displacement = self.MO2.position.value - self.MO2.rest_position.value
+            prediction_displacement_FC = self.MO2_FC.position.value - self.MO2_FC.rest_position.value
 
-            ground_truth_grid = self.MO1_LR.position.value - self.MO1_LR.rest_position.value
-            prediction_grid = self.MO_training.position.value - self.MO_training.rest_position.value
+            ground_truth_grid = self.MO_MapHR.position.value - self.MO_MapHR.rest_position.value
+            prediction_grid = self.MO_MapLR.position.value - self.MO_MapLR.rest_position.value
+            prediction_grid_FC = self.MO_MapLR_FC.position.value - self.MO_MapLR_FC.rest_position.value
 
             ground_truth_rest = self.MO1.rest_position.value
             prediction_rest = self.MO2.rest_position.value
+            prediction_rest_FC = self.MO2_FC.rest_position.value
 
-            ground_truth_grid_rest = self.MO1_LR.rest_position.value
-            prediction_grid_rest = self.MO_training.rest_position.value
+            ground_truth_grid_rest = self.MO_MapHR.rest_position.value
+            prediction_grid_rest = self.MO_MapLR.rest_position.value
+            prediction_grid_rest_FC = self.MO_MapLR_FC.rest_position.value
 
             np.save(f'images_data/{self.directory}/ground_truth_displacement.npy', ground_truth_displacement)
             np.save(f'images_data/{self.directory}/prediction_displacement.npy', prediction_displacement)
@@ -530,6 +554,10 @@ class AnimationStepController(Sofa.Core.Controller):
             np.save(f'images_data/{self.directory}/prediction_rest.npy', prediction_rest)
             np.save(f'images_data/{self.directory}/ground_truth_grid_rest.npy', ground_truth_grid_rest)
             np.save(f'images_data/{self.directory}/prediction_grid_rest.npy', prediction_grid_rest)
+            np.save(f'images_data/{self.directory}/prediction_displacement_FC.npy', prediction_displacement_FC)
+            np.save(f'images_data/{self.directory}/prediction_grid_FC.npy', prediction_grid_FC)
+            np.save(f'images_data/{self.directory}/prediction_rest_FC.npy', prediction_rest_FC)
+            np.save(f'images_data/{self.directory}/prediction_grid_rest_FC.npy', prediction_grid_rest_FC)
             
 
         
@@ -554,16 +582,13 @@ class AnimationStepController(Sofa.Core.Controller):
         vector_field_clean = vector_field[unique_indices]
         try:
             rbf_u = RBFInterpolator(old_grid_clean, vector_field_clean[:, 0], 
-                                kernel='gaussian',
-                                epsilon=2.0,
+                                kernel='cubic',
                                 smoothing=1e-3)
             rbf_v = RBFInterpolator(old_grid_clean, vector_field_clean[:, 1],
-                                kernel='gaussian',
-                                epsilon=2.0,
+                                kernel='cubic',
                                 smoothing=1e-3)
             rbf_w = RBFInterpolator(old_grid_clean, vector_field_clean[:, 2],
-                                kernel='gaussian',
-                                epsilon=2.0,
+                                kernel='cubic',
                                 smoothing=1e-3)
             
             u_new = rbf_u(new_grid)
@@ -698,6 +723,11 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error.mean(), 6)} ± {np.round(1e2 * relative_error.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
+            print("\nGNN Relative RMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)/14} ± {np.round(np.std(self.RMSE_error), 6)/14}")
+            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)/14} -> {np.round(np.max(self.RMSE_error), 6)/14}")
+            
+
             print("\nFC L2 ERROR Statistics :")
             print(f"\t- Distribution : {np.round(np.mean(self.l2_error_FC), 6)} ± {np.round(np.std(self.l2_error_FC), 6)} m")
             print(f"\t- Extrema : {np.round(np.min(self.l2_error_FC), 6)} -> {np.round(np.max(self.l2_error_FC), 6)} m")
@@ -719,10 +749,18 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Distribution : {np.round(1e2 * relative_error_FC.mean(), 6)} ± {np.round(1e2 * relative_error_FC.std(), 6)} %")
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error_FC.min(), 6)} -> {np.round(np.max(relative_error_FC), 6)} %")
 
+            print("\nFC Relative RMSE Statistics :")
+            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)/14} ± {np.round(np.std(self.RMSE_error), 6)/14}")
+            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)/14} -> {np.round(np.max(self.RMSE_error), 6)/14}")
+
             #add a table comparing rmse of the two models
             print("\nComparison of the RMSE between the GNN and the FC model:")
             print(f"\t- GNN RMSE : {np.round(np.mean(self.RMSE_error), 6)} ± {np.round(np.std(self.RMSE_error), 6)} m")
             print(f"\t- FC RMSE : {np.round(np.mean(self.RMSE_error_FC), 6)} ± {np.round(np.std(self.RMSE_error_FC), 6)} m")
+            print(f"\t- Relative RMSE GNN : {np.round(np.mean(self.RMSE_error)/14, 6)} ± {np.round(np.std(self.RMSE_error)/14, 6)}")
+            print(f"\t- Relative RMSE FC : {np.round(np.mean(self.RMSE_error_FC)/14, 6)} ± {np.round(np.std(self.RMSE_error_FC)/14, 6)}")
+            print(f"\t- MSE GNN : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
+            print(f"\t- MSE FC : {np.round(np.mean(self.MSE_error_FC), 6)} ± {np.round(np.std(self.MSE_error_FC), 6)} m²")
 
         elif len(self.errs) > 0:
             # plot the error as a function of the noise
@@ -766,9 +804,9 @@ def main():
     rootNode, asc = createScene(root)
     Sofa.Simulation.init(root)
 
-    USE_GUI = False
+    USE_GUI = True
     if not USE_GUI:
-        training_samples = 200
+        training_samples = 100
         validation_samples = 10
         test_samples = 300
         for iteration in tqdm(range(training_samples)):

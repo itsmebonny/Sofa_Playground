@@ -76,8 +76,8 @@ class AnimationStepController(Sofa.Core.Controller):
         rootNode.addObject('DefaultContactManager', name="CollisionResponse", response="FrictionContactConstraint")
         rootNode.addObject('DiscreteIntersection')
 
-        filename_high = 'mesh/lego_brick_579.msh'
-        filename_low = 'mesh/lego_brick_3867.msh'
+        filename_high = 'mesh/lego_brick_3867.msh'
+        filename_low = 'mesh/lego_brick_579.msh'
 
         # Define material properties
         young_modulus = 5000
@@ -457,7 +457,7 @@ def main():
     Sofa.Simulation.init(root)
 
     if not USE_GUI:
-        training_samples = 400
+        training_samples = 5000
         validation_samples = 10
         test_samples = 300
         for iteration in tqdm(range(training_samples)):
