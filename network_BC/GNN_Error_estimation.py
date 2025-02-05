@@ -257,7 +257,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/2025-01-31_09:30:54_validation_10k'
+            self.validation_dir = 'npy_GNN_lego/inverted_validation_2k'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_loader = DataLoader(
@@ -374,8 +374,8 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/2025-01-31_01:12:47_training_10k'
-    message_passing = 9
+    data_dir = 'npy_GNN_lego/inverted_training_2k'
+    message_passing = 5
     trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GNN_passing_{message_passing}"
