@@ -375,7 +375,7 @@ class Trainer:
 
 if __name__ == '__main__':
     data_dir = 'npy_GNN_lego/inverted_training_2k'
-    message_passing = 5
+    message_passing = 9
     trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GNN_passing_{message_passing}"
