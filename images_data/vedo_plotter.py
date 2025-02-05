@@ -8,7 +8,7 @@ vedo.settings.default_backend = 'vtk'
 
 #load data
 
-directory_name = 'images_data/2025-02-04_15:10:28_3_passings_10k'
+directory_name = 'images_data/2025-02-05_16:08:16_3_passings_10k'
 gt_displacement = np.load(directory_name + '/ground_truth_displacement.npy')
 pred_displacement = np.load(directory_name + '/prediction_displacement.npy')
 gt_grid = np.load(directory_name + '/ground_truth_grid.npy')
@@ -17,6 +17,7 @@ gt_rest = np.load(directory_name + '/ground_truth_rest.npy')
 pred_rest = np.load(directory_name + '/prediction_rest.npy')
 gt_grid_rest = np.load(directory_name + '/ground_truth_grid_rest.npy')
 pred_grid_rest = np.load(directory_name + '/prediction_grid_rest.npy')
+mesh_position = np.load(directory_name + '/mesh_position.npy')
 
 #print_all_shapes
 print('gt_displacement shape:', gt_displacement.shape)
@@ -157,5 +158,5 @@ def plot_mesh_with_error(mesh_path, points, errors):
 
 # Usage
 mesh_path = "mesh/lego_brick_3867.msh"
-plotter = plot_mesh_with_error(mesh_path, gt_grid, error_gt)
+plotter = plot_mesh_with_error(mesh_path, mesh_position, error_gt)
 plotter.show()

@@ -49,9 +49,13 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_error_FC, self.MSE_error_FC = [], []
         self.l2_deformation_FC, self.MSE_deformation_FC = [], []
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
-        self.save_for_images = False
-        self.model_FC = 'models_BC/model_2025-02-04_00:55:43_FC_lego_5k.pth'
-        self.model_GNN = 'models_BC/model_2025-02-03_09:04:15_GNN_passing_3_lego_5k.pth'
+
+        ## CHECK IF YOU WANT TO SAVE THE DATA
+        self.save_for_images = True
+
+        ######################
+        self.model_FC = 'models_BC/model_2025-02-03_12:20:29_FC_lego_10k.pth'
+        self.model_GNN = 'models_BC/model_2025-02-01_16:00:15_GNN_passing_3_lego_10k.pth'
         self.passings = int(self.model_GNN.split('passing_')[1].split('_')[0])
         self.samples = int(self.model_GNN.split('_')[-1].split('.')[0][:-1])
         
@@ -765,90 +769,91 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- MSE GNN : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
             print(f"\t- MSE FC : {np.round(np.mean(self.MSE_error_FC), 6)} ± {np.round(np.std(self.MSE_error_FC), 6)} m²")
 
-            #put all this in a json file
-            data = {
-                "GNN": {
-                    "L2_error": {
-                        "mean": np.round(np.mean(self.l2_error), 6),
-                        "std": np.round(np.std(self.l2_error), 6),
-                        "min": np.round(np.min(self.l2_error), 6),
-                        "max": np.round(np.max(self.l2_error), 6)
-                    },
-                    "MSE_error": {
-                        "mean": np.round(np.mean(self.MSE_error), 6),
-                        "std": np.round(np.std(self.MSE_error), 6),
-                        "min": np.round(np.min(self.MSE_error), 6),
-                        "max": np.round(np.max(self.MSE_error), 6)
-                    },
-                    "RMSE_error": {
-                        "mean": np.round(np.mean(self.RMSE_error), 6),
-                        "std": np.round(np.std(self.RMSE_error), 6),
-                        "min": np.round(np.min(self.RMSE_error), 6),
-                        "max": np.round(np.max(self.RMSE_error), 6)
-                    },
-                    "Relative_RMSE": {
-                        "mean": np.round(np.mean(self.RMSE_error)/14, 6),
-                        "std": np.round(np.std(self.RMSE_error)/14, 6)
-                    }
-                },
-                "FC": {
-                    "L2_error": {
-                        "mean": np.round(np.mean(self.l2_error_FC), 6),
-                        "std": np.round(np.std(self.l2_error_FC), 6),
-                        "min": np.round(np.min(self.l2_error_FC), 6),
-                        "max": np.round(np.max(self.l2_error_FC), 6)
-                    },
-                    "MSE_error": {
-                        "mean": np.round(np.mean(self.MSE_error_FC), 6),
-                        "std": np.round(np.std(self.MSE_error_FC), 6),
-                        "min": np.round(np.min(self.MSE_error_FC), 6),
-                        "max": np.round(np.max(self.MSE_error_FC), 6)
-                    },
-                    "RMSE_error": {
-                        "mean": np.round(np.mean(self.RMSE_error_FC), 6),
-                        "std": np.round(np.std(self.RMSE_error_FC), 6),
-                        "min": np.round(np.min(self.RMSE_error_FC), 6),
-                        "max": np.round(np.max(self.RMSE_error_FC), 6)
-                    },
-                    "Relative_RMSE": {
-                        "mean": np.round(np.mean(self.RMSE_error_FC)/14, 6),
-                        "std": np.round(np.std(self.RMSE_error_FC)/14, 6)
-                    }
-                },
-                "Recap": {
-                    "Comparison_RMSE": {
-                        "GNN": {
-                            "mean": np.round(np.mean(self.RMSE_error), 6),
-                            "std": np.round(np.std(self.RMSE_error), 6)
+            if not self.save_for_images:
+                #put all this in a json file
+                data = {
+                    "GNN": {
+                        "L2_error": {
+                            "mean": np.round(np.mean(self.l2_error), 6),
+                            "std": np.round(np.std(self.l2_error), 6),
+                            "min": np.round(np.min(self.l2_error), 6),
+                            "max": np.round(np.max(self.l2_error), 6)
                         },
-                        "FC": {
-                            "mean": np.round(np.mean(self.RMSE_error_FC), 6),
-                            "std": np.round(np.std(self.RMSE_error_FC), 6)
+                        "MSE_error": {
+                            "mean": np.round(np.mean(self.MSE_error), 6),
+                            "std": np.round(np.std(self.MSE_error), 6),
+                            "min": np.round(np.min(self.MSE_error), 6),
+                            "max": np.round(np.max(self.MSE_error), 6)
+                        },
+                        "RMSE_error": {
+                            "mean": np.round(np.mean(self.RMSE_error), 6),
+                            "std": np.round(np.std(self.RMSE_error), 6),
+                            "min": np.round(np.min(self.RMSE_error), 6),
+                            "max": np.round(np.max(self.RMSE_error), 6)
                         },
                         "Relative_RMSE": {
-                            "GNN": np.round(np.mean(self.RMSE_error)/14, 6),
-                            "FC": np.round(np.mean(self.RMSE_error_FC)/14, 6)
+                            "mean": np.round(np.mean(self.RMSE_error)/14, 6),
+                            "std": np.round(np.std(self.RMSE_error)/14, 6)
                         }
                     },
-                    "Comparison_MSE": {
-                        "GNN": {
-                            "mean": np.round(np.mean(self.MSE_error), 6),
-                            "std": np.round(np.std(self.MSE_error), 6)
+                    "FC": {
+                        "L2_error": {
+                            "mean": np.round(np.mean(self.l2_error_FC), 6),
+                            "std": np.round(np.std(self.l2_error_FC), 6),
+                            "min": np.round(np.min(self.l2_error_FC), 6),
+                            "max": np.round(np.max(self.l2_error_FC), 6)
                         },
-                        "FC": {
+                        "MSE_error": {
                             "mean": np.round(np.mean(self.MSE_error_FC), 6),
-                            "std": np.round(np.std(self.MSE_error_FC), 6)
+                            "std": np.round(np.std(self.MSE_error_FC), 6),
+                            "min": np.round(np.min(self.MSE_error_FC), 6),
+                            "max": np.round(np.max(self.MSE_error_FC), 6)
+                        },
+                        "RMSE_error": {
+                            "mean": np.round(np.mean(self.RMSE_error_FC), 6),
+                            "std": np.round(np.std(self.RMSE_error_FC), 6),
+                            "min": np.round(np.min(self.RMSE_error_FC), 6),
+                            "max": np.round(np.max(self.RMSE_error_FC), 6)
+                        },
+                        "Relative_RMSE": {
+                            "mean": np.round(np.mean(self.RMSE_error_FC)/14, 6),
+                            "std": np.round(np.std(self.RMSE_error_FC)/14, 6)
+                        }
+                    },
+                    "Recap": {
+                        "Comparison_RMSE": {
+                            "GNN": {
+                                "mean": np.round(np.mean(self.RMSE_error), 6),
+                                "std": np.round(np.std(self.RMSE_error), 6)
+                            },
+                            "FC": {
+                                "mean": np.round(np.mean(self.RMSE_error_FC), 6),
+                                "std": np.round(np.std(self.RMSE_error_FC), 6)
+                            },
+                            "Relative_RMSE": {
+                                "GNN": np.round(np.mean(self.RMSE_error)/14, 6),
+                                "FC": np.round(np.mean(self.RMSE_error_FC)/14, 6)
+                            }
+                        },
+                        "Comparison_MSE": {
+                            "GNN": {
+                                "mean": np.round(np.mean(self.MSE_error), 6),
+                                "std": np.round(np.std(self.MSE_error), 6)
+                            },
+                            "FC": {
+                                "mean": np.round(np.mean(self.MSE_error_FC), 6),
+                                "std": np.round(np.std(self.MSE_error_FC), 6)
+                            }
                         }
                     }
                 }
-            }
-            if not os.path.exists('metrics_data'):
-                os.mkdir('metrics_data')
-            self.model_name = self.model_GNN.split('/')[-1]
-            if not os.path.exists(f'metrics_data/{self.model_name}'):
-                os.mkdir(f'metrics_data/{self.model_name}')
-            with open(f'metrics_data/{self.model_name}/metrics.json', 'w') as f:
-                json.dump(data, f, indent=4)
+                if not os.path.exists('metrics_data'):
+                    os.mkdir('metrics_data')
+                self.model_name = self.model_GNN.split('/')[-1]
+                if not os.path.exists(f'metrics_data/{self.model_name}'):
+                    os.mkdir(f'metrics_data/{self.model_name}')
+                with open(f'metrics_data/{self.model_name}/metrics.json', 'w') as f:
+                    json.dump(data, f, indent=4)
 
 
 
@@ -894,7 +899,7 @@ def main():
     rootNode, asc = createScene(root)
     Sofa.Simulation.init(root)
 
-    USE_GUI = False
+    USE_GUI = True
     if not USE_GUI:
         training_samples = 200
         validation_samples = 10
