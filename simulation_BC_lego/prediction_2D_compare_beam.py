@@ -17,6 +17,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 import sys
 import json
+np.random.seed(42)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../network_BC'))
 
@@ -48,16 +49,16 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_error_FC, self.MSE_error_FC = [], []
         self.l2_deformation_FC, self.MSE_deformation_FC = [], []
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
-        self.save_for_images = True
-        self.model_FC = 'models_BC/model_2025-02-03_12:20:29_FC_lego_10k.pth'
-        self.model_GNN = 'models_BC/model_2025-02-01_16:00:15_GNN_passing_3_lego_10k.pth'
+        self.save_for_images = False
+        self.model_FC = 'models_BC/model_2025-02-04_00:55:43_FC_lego_5k.pth'
+        self.model_GNN = 'models_BC/model_2025-02-03_09:04:15_GNN_passing_3_lego_5k.pth'
         self.passings = int(self.model_GNN.split('passing_')[1].split('_')[0])
         self.samples = int(self.model_GNN.split('_')[-1].split('.')[0][:-1])
         
 
-        self.network = Trainer('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001, 500)
+        self.network = Trainer('npy_GNN_lego/inverted_fast_loading', 32, 0.001, 500)
         self.network.load_model(self.model_GNN)
-        self.networkFC = TrainerFC('npy_GNN_lego/2025-01-29_11:44:57_fast_loading', 32, 0.001,  500)
+        self.networkFC = TrainerFC('npy_GNN_lego/inverted_fast_loading', 32, 0.001,  500)
         self.networkFC.load_model(self.model_FC)
         
     def createGraph(self, rootNode):
@@ -440,6 +441,7 @@ class AnimationStepController(Sofa.Core.Controller):
         U_low_FC = self.compute_displacement(self.MO_MapLR_FC)
         edges_low = self.compute_edges(self.surface_topo_LR)
         # print("U_low_FC: ", U_low_FC.shape)
+        self.mesh_position = U_low
 
 
         boundary_nodes = np.zeros((U_low.shape[0], 4))
@@ -558,6 +560,7 @@ class AnimationStepController(Sofa.Core.Controller):
             np.save(f'images_data/{self.directory}/prediction_grid_FC.npy', prediction_grid_FC)
             np.save(f'images_data/{self.directory}/prediction_rest_FC.npy', prediction_rest_FC)
             np.save(f'images_data/{self.directory}/prediction_grid_rest_FC.npy', prediction_grid_rest_FC)
+            np.save(f'images_data/{self.directory}/mesh_position.npy', self.mesh_position)
             
 
         
@@ -762,6 +765,93 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- MSE GNN : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
             print(f"\t- MSE FC : {np.round(np.mean(self.MSE_error_FC), 6)} ± {np.round(np.std(self.MSE_error_FC), 6)} m²")
 
+            #put all this in a json file
+            data = {
+                "GNN": {
+                    "L2_error": {
+                        "mean": np.round(np.mean(self.l2_error), 6),
+                        "std": np.round(np.std(self.l2_error), 6),
+                        "min": np.round(np.min(self.l2_error), 6),
+                        "max": np.round(np.max(self.l2_error), 6)
+                    },
+                    "MSE_error": {
+                        "mean": np.round(np.mean(self.MSE_error), 6),
+                        "std": np.round(np.std(self.MSE_error), 6),
+                        "min": np.round(np.min(self.MSE_error), 6),
+                        "max": np.round(np.max(self.MSE_error), 6)
+                    },
+                    "RMSE_error": {
+                        "mean": np.round(np.mean(self.RMSE_error), 6),
+                        "std": np.round(np.std(self.RMSE_error), 6),
+                        "min": np.round(np.min(self.RMSE_error), 6),
+                        "max": np.round(np.max(self.RMSE_error), 6)
+                    },
+                    "Relative_RMSE": {
+                        "mean": np.round(np.mean(self.RMSE_error)/14, 6),
+                        "std": np.round(np.std(self.RMSE_error)/14, 6)
+                    }
+                },
+                "FC": {
+                    "L2_error": {
+                        "mean": np.round(np.mean(self.l2_error_FC), 6),
+                        "std": np.round(np.std(self.l2_error_FC), 6),
+                        "min": np.round(np.min(self.l2_error_FC), 6),
+                        "max": np.round(np.max(self.l2_error_FC), 6)
+                    },
+                    "MSE_error": {
+                        "mean": np.round(np.mean(self.MSE_error_FC), 6),
+                        "std": np.round(np.std(self.MSE_error_FC), 6),
+                        "min": np.round(np.min(self.MSE_error_FC), 6),
+                        "max": np.round(np.max(self.MSE_error_FC), 6)
+                    },
+                    "RMSE_error": {
+                        "mean": np.round(np.mean(self.RMSE_error_FC), 6),
+                        "std": np.round(np.std(self.RMSE_error_FC), 6),
+                        "min": np.round(np.min(self.RMSE_error_FC), 6),
+                        "max": np.round(np.max(self.RMSE_error_FC), 6)
+                    },
+                    "Relative_RMSE": {
+                        "mean": np.round(np.mean(self.RMSE_error_FC)/14, 6),
+                        "std": np.round(np.std(self.RMSE_error_FC)/14, 6)
+                    }
+                },
+                "Recap": {
+                    "Comparison_RMSE": {
+                        "GNN": {
+                            "mean": np.round(np.mean(self.RMSE_error), 6),
+                            "std": np.round(np.std(self.RMSE_error), 6)
+                        },
+                        "FC": {
+                            "mean": np.round(np.mean(self.RMSE_error_FC), 6),
+                            "std": np.round(np.std(self.RMSE_error_FC), 6)
+                        },
+                        "Relative_RMSE": {
+                            "GNN": np.round(np.mean(self.RMSE_error)/14, 6),
+                            "FC": np.round(np.mean(self.RMSE_error_FC)/14, 6)
+                        }
+                    },
+                    "Comparison_MSE": {
+                        "GNN": {
+                            "mean": np.round(np.mean(self.MSE_error), 6),
+                            "std": np.round(np.std(self.MSE_error), 6)
+                        },
+                        "FC": {
+                            "mean": np.round(np.mean(self.MSE_error_FC), 6),
+                            "std": np.round(np.std(self.MSE_error_FC), 6)
+                        }
+                    }
+                }
+            }
+            if not os.path.exists('metrics_data'):
+                os.mkdir('metrics_data')
+            self.model_name = self.model_GNN.split('/')[-1]
+            if not os.path.exists(f'metrics_data/{self.model_name}'):
+                os.mkdir(f'metrics_data/{self.model_name}')
+            with open(f'metrics_data/{self.model_name}/metrics.json', 'w') as f:
+                json.dump(data, f, indent=4)
+
+
+
         elif len(self.errs) > 0:
             # plot the error as a function of the noise
             import matplotlib.pyplot as plt
@@ -804,9 +894,9 @@ def main():
     rootNode, asc = createScene(root)
     Sofa.Simulation.init(root)
 
-    USE_GUI = True
+    USE_GUI = False
     if not USE_GUI:
-        training_samples = 100
+        training_samples = 200
         validation_samples = 10
         test_samples = 300
         for iteration in tqdm(range(training_samples)):
