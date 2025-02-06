@@ -107,17 +107,10 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
         self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
-        #self.MO1_LR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', position='1 3 0')
         self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
 
 
-        # self.trained_nodes = rootNode.addChild('SparseCoarseMesh')
-        # self.trained_nodes.addObject('SparseGridTopology', n="10 10 1", position='@../grid.position', name='coarseGridLow')
-        # self.trained_nodes.addObject('TriangleSetTopologyContainer', name='triangleTopoLow', src='@coarseGridLow')
-        # self.MO_training = self.trained_nodes.addObject('MechanicalObject', name='coarseDOFsLow', template='Vec3d', src='@coarseGridLow')
-        # self.trained_nodes.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='1 1 0')
-        # self.trained_nodes.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsLow', output_topology='@triangleTopoLow')
 
         self.LowResSolution.addChild("visual")
         self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../../loader', color='1 0 0 0.5')
@@ -126,6 +119,10 @@ class AnimationStepController(Sofa.Core.Controller):
 
         self.nb_nodes = len(self.MO1.position.value)
         self.nb_nodes_LR = len(self.MO_MapLR.position.value)
+        print(f"Number of nodes in the high resolution solution: {self.nb_nodes}")
+        print(f"Number of nodes in the low resolution solution: {self.nb_nodes_LR}")
+        print(f"Number of nodes in the mapping: {len(self.MO_MapLR.position.value)}")
+        print(f"Number of nodes in the mapping: {len(self.MO_MapHR.position.value)}")
 
 
     def onSimulationInitDoneEvent(self, event):
@@ -134,7 +131,7 @@ class AnimationStepController(Sofa.Core.Controller):
         """
         self.inputs = []
         self.outputs = []
-        self.save = True
+        self.save = False
         self.efficient_sampling = False
         self.iteration = 0
         if self.efficient_sampling:

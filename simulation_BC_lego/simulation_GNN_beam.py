@@ -18,21 +18,27 @@ from parameters_2D import p_grid, p_grid_LR
 
 
 class AnimationStepController(Sofa.Core.Controller):
-    def __init__(self, node, *args, **kwargs):
+    def __init__(self, node, filename_high, filename_low, directory, *args, **kwargs):
         Sofa.Core.Controller.__init__(self, *args, **kwargs)
-        self.externalForce = [0, 50, 0]
+        self.externalForce = [0, 5, 0]
         self.object_mass = 0.5
-        self.createGraph(node)
+        self.createGraph(node, filename_high, filename_low)
         self.root = node
         self.save = False
         self.l2_error, self.MSE_error = [], []
         self.l2_deformation, self.MSE_deformation = [], []
         self.RMSE_error, self.RMSE_deformation = [], []
-        
-    def createGraph(self, rootNode):
+        self.directory = directory
+        print(f"Using directory: {self.directory}")
+        print(f"Using filename_high: {filename_high}")
+        print(f"Using filename_low: {filename_low}")
+
+
+    def createGraph(self, rootNode, filename_high, filename_low):
+        self.filename_high = filename_high
+        self.filename_low = filename_low
 
         rootNode.addObject('RequiredPlugin', name='MultiThreading')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Playback')
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Projective') # Needed to use components [FixedProjectiveConstraint]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Engine.Select') # Needed to use components [BoxROI]  
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.LinearSolver.Iterative') # Needed to use components [CGLinearSolver]  
@@ -48,15 +54,6 @@ class AnimationStepController(Sofa.Core.Controller):
         rootNode.addObject('RequiredPlugin', name='Sofa.Component.Visual') # Needed to use components [VisualStyle]  
 
 
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Detection.Algorithm')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Detection.Intersection')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Geometry')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Collision.Response.Contact')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.IO.Mesh')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.SolidMechanics.Spring')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Topology.Container.Constant')
-        rootNode.addObject('RequiredPlugin', name='Sofa.Component.Constraint.Lagrangian.Solver')
-
         rootNode.addObject('DefaultAnimationLoop')
         rootNode.addObject('DefaultVisualManagerLoop') 
         rootNode.addObject('VisualStyle', name="visualStyle", displayFlags="showBehaviorModels showCollisionModels")
@@ -66,40 +63,31 @@ class AnimationStepController(Sofa.Core.Controller):
         
         sphereRadius=0.025
 
-        ### Collision model
-        
-        rootNode.addObject('GenericConstraintSolver', maxIterations=1000, tolerance=1e-6)
-
-        rootNode.addObject('CollisionPipeline', name="CollisionPipeline")
-        rootNode.addObject('BruteForceBroadPhase', name="BroadPhase")
-        rootNode.addObject('BVHNarrowPhase', name="NarrowPhase")
-        rootNode.addObject('DefaultContactManager', name="CollisionResponse", response="FrictionContactConstraint")
-        rootNode.addObject('DiscreteIntersection')
-
-        filename_high = 'mesh/lego_brick_3867.msh'
-        filename_low = 'mesh/lego_brick_579.msh'
 
         # Define material properties
         young_modulus = 5000
         poisson_ratio = 0.25
 
         self.coarse = rootNode.addChild('SamplingNodes')
-        self.coarse.addObject('MeshGmshLoader', name='grid', filename=filename_low, scale3d="1 1 1", translation="0 0 0")
-        self.coarse.addObject('SparseGridRamificationTopology', n="8 8 25", position='@grid.position', name='coarseGridHigh')
-        #self.coarse.addObject('SphereCollisionModel', radius=1e-8, group=1, color='1 0 0')
+        self.coarse.addObject('RegularGridTopology', name='coarseGridHigh', min=p_grid.min, max=p_grid.max, nx=p_grid.res[0], ny=p_grid.res[1], nz=p_grid.res[2])
+        self.coarse.addObject('TetrahedronSetTopologyContainer', name='triangleTopoHigh', src='@coarseGridHigh')
+        self.MO_sampling = self.coarse.addObject('MechanicalObject', name='coarseDOFsHigh', template='Vec3d', src='@coarseGridHigh')
+        self.coarse.addObject('SphereCollisionModel', radius=1e-8, group=1, color='1 0 0')
         #self.coarse.addObject('BarycentricMapping', name="mapping", input='@DOFs', input_topology='@triangleTopo', output='@coarseDOFsHigh', output_topology='@triangleTopoHigh')
+
+
 
         self.exactSolution = rootNode.addChild('HighResSolution2D', activated=True)
         self.exactSolution.addObject('MeshGmshLoader', name='grid', filename=filename_high)
         self.surface_topo = self.exactSolution.addObject('TetrahedronSetTopologyContainer', name='triangleTopo', src='@grid')
         self.MO1 = self.exactSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@grid')
         # self.exactSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.solver = self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=False)
-        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=3000, tolerance=1e-10, threshold=1e-10, warmStart=True)
+        self.solver = self.exactSolution.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=True)
+        self.exactSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=1000, tolerance=1e-10, threshold=1e-10, warmStart=True)
         self.exactSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=young_modulus, poissonRatio=poisson_ratio, method="large", updateStiffnessMatrix="false")
-        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 14.1 7.1 0.1", drawBoxes=True)
+        self.exactSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 0.1 5.1 1.1", drawBoxes=True)
         self.exactSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="-0.1 -0.1 13.5 14.1 8.1 14.1", drawBoxes=True)
+        self.cff_box = self.exactSolution.addObject('BoxROI', name='ROI2', box="9.9 -0.1 -0.1 10.1 5.1 1.1", drawBoxes=True)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.exactSolution.addChild("SamplingMapping")
@@ -107,12 +95,6 @@ class AnimationStepController(Sofa.Core.Controller):
         self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 0')
 
-        # self.surf = self.exactSolution.addChild('Surf')
-        # self.surf.addObject('MeshGmshLoader', name='loader', filename='mesh/lego_for_collision.msh')
-        # self.surf.addObject('TetrahedronSetTopologyContainer', name="Container", src='@loader')
-        # self.surf.addObject('MechanicalObject', name="surfaceDOFs")
-        # self.surf.addObject('PointCollisionModel', name="CollisionModel")
-        # self.surf.addObject('IdentityMapping', name="CollisionMapping", input="@../DOFs", output="@surfaceDOFs")
 
 
         self.exactSolution.addChild("visual")
@@ -126,33 +108,28 @@ class AnimationStepController(Sofa.Core.Controller):
         self.surface_topo_LR = self.LowResSolution.addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@gridLow')
         self.MO2 = self.LowResSolution.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
         # self.LowResSolution.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
-        self.solver_LR = self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=False)
-        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=1000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
-        self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=young_modulus, poissonRatio=poisson_ratio, method="large", updateStiffnessMatrix="false")
-        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 14.1 7.1 0.1", drawBoxes=True)
+        self.solver_LR = self.LowResSolution.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=True)
+        self.LowResSolution.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=500, tolerance=1e-08, threshold=1e-08, warmStart=False) 
+        self.LowResSolution.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=5000, poissonRatio=0.4, method="large", updateStiffnessMatrix="false")
+        self.LowResSolution.addObject('BoxROI', name='ROI', box="-0.1 -0.1 -0.1 0.1 5.1 1.1", drawBoxes=True)
         self.LowResSolution.addObject('FixedConstraint', indices="@ROI.indices")
-        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ROI2', box="-0.1 -0.1 13.5 14.1 8.1 14.1", drawBoxes=True)
+        self.cff_box_LR = self.LowResSolution.addObject('BoxROI', name='ROI2', box="9.9 -0.1 -0.1 10.1 2.1 1.1", drawBoxes=True)
         self.cffLR = self.LowResSolution.addObject('ConstantForceField', indices="@ROI2.indices", totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
 
         self.mapping = self.LowResSolution.addChild("SamplingMapping")
-        self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_LR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
-        self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_LR')
+        self.MO_MapLR = self.mapping.addObject('MechanicalObject', name='DOFs_HR', template='Vec3d', src='@../../SamplingNodes/coarseGridHigh')
+        self.mapping.addObject('BarycentricMapping', name="mapping", input='@../DOFs', input_topology='@../triangleTopo', output='@DOFs_HR')
         self.mapping.addObject('SphereCollisionModel', radius=sphereRadius, group=1, color='0 1 1')
 
-        # self.surf = self.LowResSolution.addChild('Surf')
-        # self.surf.addObject('MeshGmshLoader', name='loader', filename='mesh/lego_for_collision.msh')
-        # self.surf.addObject('TetrahedronSetTopologyContainer', name="Container", src='@loader')
-        # self.surf.addObject('MechanicalObject', name="surfaceDOFs")
-        # self.surf.addObject('PointCollisionModel', name="CollisionModel")
-        # self.surf.addObject('IdentityMapping', name="CollisionMapping", input="@../DOFs", output="@surfaceDOFs")
+
 
         self.LowResSolution.addChild("visual")
-        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../DOFs', color='1 0 0 1')
+        self.visual_model = self.LowResSolution.visual.addObject('OglModel', src='@../DOFs', color='0 1 1 1')
         self.LowResSolution.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
-
         self.nb_nodes = len(self.MO1.position.value)
-        self.nb_nodes_LR = len(self.MO_MapLR.position.value)
+        self.nb_nodes_LR = len(self.MO2.position.value)
+        
 
 
     def onSimulationInitDoneEvent(self, event):
@@ -176,11 +153,8 @@ class AnimationStepController(Sofa.Core.Controller):
             if not os.path.exists('npy_GNN_lego'):
                 os.mkdir('npy_GNN_lego')
             # get current time from computer format yyyy-mm-dd-hh-mm-ss and create a folder with that name
-            self.directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-            self.directory = self.directory + "_estimation"
-            if self.efficient_sampling:
-                self.directory = self.directory + "_efficient"
-            os.makedirs(f'npy_GNN_lego/{self.directory}')
+            if not os.path.exists(f'npy_GNN_lego/{self.directory}'):
+                os.makedirs(f'npy_GNN_lego/{self.directory}')
             print(f"Saving data to npy_GNN_lego/{self.directory}")
         self.sampled = False
 
@@ -190,6 +164,12 @@ class AnimationStepController(Sofa.Core.Controller):
         self.idx_surface = surface.triangles.value.reshape(-1)
         self.idx_surface_LR = surface_LR.triangles.value.reshape(-1)
 
+        print(f"Number of nodes in the high resolution solution: {self.nb_nodes}")
+        print(f"Number of nodes in the low resolution solution: {self.nb_nodes_LR}")
+        print(f"Number of nodes in the sampling grid: {len(self.MO_sampling.position.value)}")
+        print(f"Number of nodes in the high resolution mapping: {len(self.MO_MapHR.position.value)}")
+        print(f"Number of nodes in the low resolution mapping: {len(self.MO_MapLR.position.value)}")
+
 
     def onAnimateBeginEvent(self, event):
     
@@ -197,17 +177,12 @@ class AnimationStepController(Sofa.Core.Controller):
         # reset positions
         self.MO1.position.value = self.MO1.rest_position.value
         self.MO2.position.value = self.MO2.rest_position.value
-        self.MO_MapHR.position.value = self.MO_MapHR.rest_position.value
-        self.MO_MapLR.position.value = self.MO_MapLR.rest_position.value
-        if self.sampled:
-            #print("================== Sampled all magnitudes and versors ==================\n")
-            print ("================== The simulation is over ==================\n")
-        
+   
         if not self.efficient_sampling:
             self.z = np.random.uniform(-1, 1)
             self.phi = np.random.uniform(0, 2*np.pi)
             self.versor = np.array([np.sqrt(1 - self.z**2) * np.cos(self.phi), np.sqrt(1 - self.z**2) * np.sin(self.phi), self.z])
-            self.magnitude = np.random.uniform(20, 100)
+            self.magnitude = np.random.uniform(0, 25)
             self.externalForce = self.magnitude * self.versor
         else:
             self.sample = self.count_m *self.num_versors + self.count_v
@@ -223,76 +198,48 @@ class AnimationStepController(Sofa.Core.Controller):
                 self.count_v = 0
                 self.sampled = True
 
-        def count_intersecting_squares(large_square_points, small_squares):
-            """
-            Counts how many smaller squares are intersected by the large square.
-
-            Parameters:
-                large_square_points (tuple): Two points (x1, y1) and (x2, y2) defining the large square.
-                small_squares (list): A list of smaller squares, each defined as a dictionary with:
-                                    {"center": (xc, yc), "side_length": side}
-
-            Returns:
-                int: The number of smaller squares that intersect the large square.
-            """
-            # Extract large square corners
-            (x1, y1), (x2, y2) = large_square_points
-            
-            # Ensure the coordinates of the large square are sorted
-            x_left, x_right = sorted([x1, x2])
-            y_bottom, y_top = sorted([y1, y2])
-
-            intersect_count = 0
-
-            for square in small_squares:
-                xc, yc = square["center"]
-                side = square["side_length"]
-
-                # Calculate bounds of the smaller square
-                half_side = side / 2
-                x_left_small = xc - half_side
-                x_right_small = xc + half_side
-                y_bottom_small = yc - half_side
-                y_top_small = yc + half_side
-
-                # Check if the projections of the two squares overlap
-                if (x_left < x_right_small and x_right > x_left_small and
-                    y_bottom < y_top_small and y_top > y_bottom_small):
-                    intersect_count += 1
-
-            return intersect_count
-        small_squares = [{"center": (4,4), "side_length": 4}, {"center": (10,4), "side_length": 4}, {"center": (4, 10), "side_length": 4}, {"center": (10, 10), "side_length": 4}]
 
 
-       # Define random box inside this region -0.1 -0.1 5.0 10.1 5.1 6.1
-        side = np.random.uniform(4, 8)
-        height = np.random.uniform(1, 2)
-        x_min = np.random.uniform(0, 14 - side)
-        y_min = np.random.uniform(0, 14 - side)
-        z_min = np.random.uniform(8, 14 - height)
-        x_max = x_min + side
-        y_max = y_min + side
-        z_max = z_min + height
-        height_percentage = z_min/14
 
-        large_square_points = ((x_min, y_min), (x_max, y_max))
+       # Define random box
+        side = np.random.randint(1, 6)
+        print(f"Side: {side}")
+        if side == 1:
+            x_min = np.random.uniform(2, 8.0)
+            x_max = x_min + 2
+            y_min = np.random.uniform(0, 3.0)
+            y_max = y_min + 2
+            z_min = -0.1
+            z_max = 0.1
+        elif side == 2:
+            x_min = np.random.uniform(2, 8.0)
+            x_max = x_min + 2
+            y_min = np.random.uniform(-1, 3.0)
+            y_max = y_min + 2
+            z_min = 0.99
+            z_max = 1.01
+        elif side == 3:
+            x_min = np.random.uniform(2, 8.0)
+            x_max = x_min + 2
+            y_min = -0.1
+            y_max = 0.1
+            z_min = np.random.uniform(0, 0.5)
+            z_max = z_min + 0.5
+        elif side == 4:
+            x_min = np.random.uniform(2, 8.0)
+            x_max = x_min + 2
+            y_min = 4.9
+            y_max = 5.1
+            z_min = np.random.uniform(0, 0.5)
+            z_max = z_min + 0.5
+        elif side == 5:
+            x_min = 9.99
+            x_max = 10.01
+            y_min = np.random.uniform(0, 3.0)
+            y_max = y_min + 2
+            z_min = np.random.uniform(0, 0.5)
+            z_max = z_min + 0.5
 
-        # Count how many small squares are intersected by the large square
-        intersect_count = count_intersecting_squares(large_square_points, small_squares)
-        
-        
-        if y_max > 8 and x_max > 8:
-            if intersect_count == 4:
-                self.magnitude = self.magnitude * (1 - height_percentage)
-            if intersect_count == 2:
-                self.magnitude = self.magnitude * (1 - height_percentage/4)
-            if intersect_count == 1:
-                self.magnitude = self.magnitude * (1 - height_percentage/10)
-        if y_max > 8 and x_max < 8:
-            if intersect_count == 2:
-                self.magnitude = self.magnitude * (1 - height_percentage/4)
-            if intersect_count == 1:
-                self.magnitude = self.magnitude * (1 - height_percentage/10)
         
 
 
@@ -312,10 +259,10 @@ class AnimationStepController(Sofa.Core.Controller):
         # Get the intersection with the surface
         indices = list(self.cff_box.indices.value)
         indices = list(set(indices).intersection(set(self.idx_surface)))
-        #print(f"Number of nodes in the high resolution solution: {len(indices)}")
+        print(f"Number of nodes in the high resolution solution: {len(indices)}")
         indices_LR = list(self.cff_box_LR.indices.value)
         indices_LR = list(set(indices_LR).intersection(set(self.idx_surface_LR)))
-        #print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
+        print(f"Number of nodes in the low resolution solution: {len(indices_LR)}")
         self.exactSolution.removeObject(self.cff)
         self.cff = self.exactSolution.addObject('ConstantForceField', indices=indices, totalForce=self.externalForce, showArrowSize=0.1, showColor="0.2 0.2 0.8 1")
         self.cff.init()
@@ -344,19 +291,15 @@ class AnimationStepController(Sofa.Core.Controller):
             #print("Empty intersection")
             self.bad_sample = True
         self.start_time = process_time()
+       
 
 
 
     def onAnimateEndEvent(self, event):
         self.end_time = process_time()
-        #print("Computation time for 1 time step: ", self.end_time - self.start_time)
-        #print("External force: ", np.linalg.norm(self.externalForce))
         U_high = self.compute_displacement(self.MO_MapHR)
         U_low = self.compute_displacement(self.MO_MapLR)
         U = self.compute_displacement(self.MO1)
-        # vel_high = self.compute_velocity(self.MO1_LR)
-        # vel_low = self.compute_velocity(self.MO_training)
-        # edges_high = self.compute_edges(self.surface_topo)
         edges_low = self.compute_edges(self.surface_topo_LR)
        
         if self.save and self.bad_sample == False:
@@ -428,11 +371,11 @@ class AnimationStepController(Sofa.Core.Controller):
         print("Closing simulation")
 
 
-def createScene(rootNode, *args, **kwargs):
+def createScene(rootNode, filename_high, filename_low, directory, *args, **kwargs):
     rootNode.dt = 0.01
     rootNode.gravity = [0, 0, 0]
     rootNode.name = 'root'
-    asc = AnimationStepController(rootNode, *args, **kwargs)
+    asc = AnimationStepController(rootNode, filename_high, filename_low, directory, *args, **kwargs)
     rootNode.addObject(asc)
     return rootNode, asc
 
@@ -440,6 +383,7 @@ def createScene(rootNode, *args, **kwargs):
 def main():
     import Sofa.Gui
     from tqdm import tqdm
+    import re
     SofaRuntime.importPlugin("Sofa.GL.Component.Rendering3D")
     SofaRuntime.importPlugin("Sofa.GL.Component.Shader")
     SofaRuntime.importPlugin("Sofa.Component.StateContainer")
@@ -450,33 +394,107 @@ def main():
     SofaRuntime.importPlugin("Sofa.Component.Engine.Select")
     SofaRuntime.importPlugin("Sofa.Component.SolidMechanics.FEM.Elastic")
 
-    USE_GUI = False
+    
 
-    root=Sofa.Core.Node("root")
-    createScene(root)
-    Sofa.Simulation.init(root)
-
-    if not USE_GUI:
-        training_samples = 1000
-        validation_samples = 10
-        test_samples = 300
-        for iteration in tqdm(range(training_samples)):
-            Sofa.Simulation.animate(root, root.dt.value)
-        # print("Training samples generated")
-        # for iteration in tqdm(range(validation_samples)):
-        #     Sofa.Simulation.animate(root, root.dt.value)
-        # print("Validation samples generated")
-        # for iteration in tqdm(range(test_samples)):
-        #     Sofa.Simulation.animate(root, root.dt.value)
-        # print("Test samples generated")
-
+    def process_mesh_files(mesh_dir):
+        # Get all .msh files
+        mesh_files = [f for f in os.listdir(mesh_dir) if f.endswith('.msh')]
+        mesh_dict = {}
         
+        # Extract parameters from filenames and group files
+        for file in mesh_files:
+            # Extract x, y, r, n values using regex
+            match = re.search(r'plate_x(\d+\.?\d*)_y(\d+\.?\d*)_r(\d+\.?\d*)_n(\d+)\.msh', file)
+            if match:
+                x, y, r, n = map(float, match.groups())
+                key = (x, y, r)
+                
+                if key not in mesh_dict:
+                    mesh_dict[key] = []
+                mesh_dict[key].append((int(n), os.path.join('mesh', file)))
+        # Sort by node count and keep only pairs
+        sorted_dict = {}
+        for key, files in mesh_dict.items():
+            if len(files) == 2:
+                # Sort by number of nodes
+                sorted_files = sorted(files, key=lambda x: x[0])
+                # Store only file paths in sorted order
+                sorted_dict[key] = [f[1] for f in sorted_files]
+        
+        return sorted_dict
+    USE_GUI = True
+    # Update main code
+    files = process_mesh_files('mesh')
+    roots_train = []
+    roots_val = []
+    ascs_train = []
+    ascs_val = []
+    mode = "train"
+    directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    training_dir = directory + "_training"
+    validation_dir = directory + "_validation"
+    mesh_training = 10
+    training_samples = 100
+    validation_samples = 20
+    #shuffle the files
+    keys = list(files.keys())
+    np.random.shuffle(keys)
+    files = {k: files[k] for k in keys}
+    for i, (key, values) in enumerate(files.items()):
+        
+        
+        if i < mesh_training:
+            root = Sofa.Core.Node("root")
+            rootNode, asc = createScene(root, values[1], values[0], training_dir)
+            Sofa.Simulation.init(root)
+            if not USE_GUI:
+                for i in tqdm(range(training_samples)):
+                        Sofa.Simulation.animate(root, root.dt.value)
+            else:
+                Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
+                Sofa.Gui.GUIManager.createGUI(root, __file__)
+                Sofa.Gui.GUIManager.SetDimension(800, 600)
+                Sofa.Gui.GUIManager.MainLoop(root)
+                Sofa.Gui.GUIManager.closeGUI()
+
+        else:
+            root = Sofa.Core.Node("root")
+            root, asc = createScene(root, values[1], values[0], validation_dir)
+            Sofa.Simulation.init(root)
+            for i in tqdm(range(validation_samples)):
+                    Sofa.Simulation.animate(root, root.dt.value)
+                    Sofa.Simulation.reset(root)
+
+
+
+
+
+    
+    if mode == "train":
+        directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+        directory = directory + "_training"
+        
+        for root, asc in zip(roots_train, ascs_train):
+            Sofa.Simulation.init(root)
+            
+
+           
     else:
-        Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
-        Sofa.Gui.GUIManager.createGUI(root, __file__)
-        Sofa.Gui.GUIManager.SetDimension(800, 600)
-        Sofa.Gui.GUIManager.MainLoop(root)
-        Sofa.Gui.GUIManager.closeGUI()
+        
+        for root, asc in zip(roots_val, ascs_val):
+            Sofa.Simulation.init(root)
+            if not USE_GUI:
+                for i in tqdm(range(validation_samples)):
+                    Sofa.Simulation.animate(root, root.dt.value)
+                    Sofa.Simulation.reset(root)
+            else:
+                Sofa.Simulation.init(root)
+                Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
+                Sofa.Gui.GUIManager.createGUI(root, __file__)
+                Sofa.Gui.GUIManager.SetDimension(800, 600)
+                Sofa.Gui.GUIManager.MainLoop(root)
+                Sofa.Gui.GUIManager.closeGUI()
+                Sofa.Simulation.reset(root)
 
 
 if __name__ == '__main__':

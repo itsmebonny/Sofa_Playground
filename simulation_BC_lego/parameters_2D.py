@@ -13,8 +13,8 @@ nz = 10 # 2D simulation
 
 
 # Grid parameters
-grid_min = array([0., -1., -1.])
-grid_max = array([10., 1., 1.])
+grid_min = array([0., 0., 0.])
+grid_max = array([10., 5., 1.])
 grid_resolution = array([nx, ny, nz])
 grid_nb_nodes = grid_resolution[0] * grid_resolution[1] * grid_resolution[2]
 grid_fixed_box = array([-0.1, -2.1, -0.1, 0.1, 2.1, 0.1])
@@ -37,8 +37,8 @@ nz_test = nz
 
 
 # Low resolution grid definition
-grid_min_LR = array([0., -1., 0.])
-grid_max_LR = array([10., 1., 0.])
+grid_min_LR = array([0., 0., 0.])
+grid_max_LR = array([10., 5., 1.])
 grid_resolution_LR = array([nx_LR, ny_LR, nz_LR])
 grid_nb_nodes_LR = grid_resolution_LR[0] * grid_resolution_LR[1] * grid_resolution_LR[2]
 grid_fixed_box_LR = array([-0.1, -2.1, -0.1, 0.1, 2.1, 0.1])
