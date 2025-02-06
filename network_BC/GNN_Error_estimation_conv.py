@@ -35,57 +35,46 @@ class Net(nn.Module):
     def __init__(self, nb_nodes, nb_features, message_passing):
         super(Net, self).__init__()
         self.nb_nodes = nb_nodes
-        self.nb_features = nb_features
-        # Define network parameters
-        hidden_channels = 64
-        depth = message_passing# Number of down/up-sampling steps
-
-        # Initial convolution to increase feature dimensions
-        self.init_conv = GCNConv(nb_features, hidden_channels)
         
-        # GraphUNet for hierarchical processing
+        # Input processing
+        self.input_norm = nn.BatchNorm1d(nb_features)
+        
+        # GraphUNet - removed add_self_loops parameter
         self.unet = GraphUNet(
-            in_channels=hidden_channels,
-            hidden_channels=hidden_channels,
-            out_channels=hidden_channels,
-            depth=depth,
-            pool_ratios=0.5  # Pool ratio at each level
+            in_channels=nb_features,
+            hidden_channels=64,
+            out_channels=64,
+            depth=message_passing,
+            pool_ratios=0.5,
+            sum_res=False,
+            act=nn.GELU()
         )
         
-        # Final convolution layers
-        self.conv1 = GCNConv(hidden_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, 3)  # Output has 3 dimensions (x,y,z)
+        # Output projection
+        self.final_conv = GCNConv(64, 3)
+        #self.final_norm = nn.BatchNorm1d(64)
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, x, edge_index, edge_attr):
-        # Initial feature processing
-        x = self.init_conv(x, edge_index)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.2, training=self.training)
-
-        # GraphUNet processing
-        x = self.unet(x, edge_index)
-        
-        # Final convolutions
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.2, training=self.training)
-        
-        x = self.conv2(x, edge_index)
-        
-        # Reshape output to match required dimensions
         batch_size = x.size(0) // self.nb_nodes
-        x = x.view(batch_size, -1)
+
+        # Network flow with edge attributes
+        x = self.input_norm(x)
+        x = self.unet(x, edge_index)  # Remove edge_attr parameter
+        x = self.dropout(x)
+        #x = self.final_norm(x)
+        x = self.final_conv(x, edge_index, edge_attr)
         
         return x
 
 class RMSELoss(nn.Module):
-    # Custom loss function that computes the mean squared error between the predicted and true values and normalizes it by the true value and normalizes it by dividing for the maximum value of the true value
-    def __init__(self):
+    def __init__(self, eps=1e-8):
         super(RMSELoss, self).__init__()
-
+        self.eps = eps
+        
     def forward(self, pred, true):
-        max_error = th.max(th.abs(true))
-        return th.sqrt(th.mean(th.square(pred - true)))/max_error
+        max_val = th.max(th.abs(true))
+        return th.sqrt(th.mean(th.square(pred - true)))/(max_val + self.eps)
     
 class MixedLoss(nn.Module):
     # Custom loss function that computes the weighted sum between the root mean squared error and the maximum absolute error
@@ -133,12 +122,17 @@ class DataGraph(Dataset):
         tmp_dir = self.samples[idx]
         
         # Load arrays with memory mapping
-        high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy", mmap_mode='r')
-        low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy", mmap_mode='r')
+        high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy", mmap_mode='r').copy()
+        low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy", mmap_mode='r').copy()
+        low_res_position = np.load(f"{tmp_dir}/low_res_position.npy", mmap_mode='r').copy()
         edges = np.load(f"{tmp_dir}/edges_low.npy", mmap_mode='r')
+        y = high_res_displacement - low_res_displacement
+        low_res_displacement = (low_res_displacement - np.mean(low_res_displacement, axis=0))/np.std(low_res_displacement, axis=0)
+        low_res_position = (low_res_position - np.min(low_res_position, axis=0))/(np.max(low_res_position, axis=0) - np.min(low_res_position, axis=0))
         
         edge_index = edges[:, :2].T.copy()
         edge_attr = edges[:, 2].copy()
+        edge_attr = (edge_attr - np.min(edge_attr))/(np.max(edge_attr) - np.min(edge_attr))
 
         # Load JSON data
         with open(f"{tmp_dir}/info.json") as f:
@@ -146,28 +140,28 @@ class DataGraph(Dataset):
             force_info = info['force_info']
             indices_BC = info['indices_BC']
             #check if indices_hole exists
-            if 'indices_hole' in info:
-                indices_hole = info['indices_hole']
+            if 'indices_circle' in info:
+                indices_hole = info['indices_circle']
         
         # Create boundary conditions
         boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
         if indices_BC:
             boundary_conditions[indices_BC, :3] = force_info['versor']
             boundary_conditions[indices_BC, 3] = force_info['magnitude']
-        if 'indices_hole' in info:
+        if 'indices_circle' in info:
             low_res_displacement[indices_hole] = 0
 
 
         # Prepare features and target
-        node_features = np.hstack((low_res_displacement.copy(), boundary_conditions))
-        y = high_res_displacement - low_res_displacement
+        node_features = np.hstack((low_res_displacement.copy(), low_res_position.copy(), boundary_conditions))
+        
         
         # Create data object
         data = Data(
             x=th.tensor(node_features, dtype=th.float32),
             edge_index=th.tensor(edge_index, dtype=th.long),
             edge_attr=th.tensor(edge_attr, dtype=th.float32),
-            y=th.tensor(y.flatten(), dtype=th.float32)
+            y=th.tensor(y, dtype=th.float32)
         )
         
         return data
@@ -226,7 +220,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/2025-02-06_12:03:20_validation'
+            self.validation_dir = 'npy_GNN_lego/2025-02-06_23:44:34_validation'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_loader = DataLoader(
@@ -246,42 +240,51 @@ class Trainer:
         self.val_losses = []
         self.train_mse = []
         self.val_mse = []
+        self.train_rmse = []
+        self.val_rmse = []
         
     def train(self):
         self.model.train()
-        early_stopper = EarlyStopper(patience=40, min_delta=1e-8, lr=self.lr)
+        early_stopper = EarlyStopper(patience=40, min_delta=1e-4, lr=self.lr)
         for epoch in range(self.epochs):
             running_loss = 0.0
             running_mse = 0.0
+            running_rmse = 0.0
             for i, data in enumerate(tqdm(self.loader)):
                 x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
                 self.optimizer.zero_grad()
                 out = self.model(x, edge_index, edge_attr)
-                y = y.view(-1, self.nb_nodes*3)
                 loss = self.criterion(out, y)
                 mse = F.mse_loss(out, y)
+                rmse = th.sqrt(mse)
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.item()
                 running_mse += mse.item()
+                running_rmse += rmse.item()
                 
             epoch_loss = running_loss/len(self.loader)
             epoch_mse = running_mse/len(self.loader)
+            epoch_rmse = np.sqrt(epoch_mse)
             self.train_losses.append(epoch_loss)
             self.train_mse.append(epoch_mse)
+            self.train_rmse.append(epoch_rmse)
             
             
             
-            val_loss, val_mse = self.validate()
+            val_loss, val_mse, val_rmse = self.validate()
+            
             self.val_losses.append(val_loss)
             self.val_mse.append(val_mse)
-            print(f"Epoch {epoch+1}, Loss: {epoch_loss}, Validation Loss: {val_loss}")
-            print(f"Learning rate: {self.optimizer.param_groups[0]['lr']}")
+            self.val_rmse.append(val_rmse)
+            
             
             if early_stopper.early_stop(val_loss, self.optimizer.param_groups[0]['lr']):
                 print("Early stopping")
                 break
             self.scheduler.step(val_loss)
+
+            print(f"Epoch {epoch+1}, Loss: {epoch_loss}, Validation Loss: {val_loss}\nCurrent LR: {self.optimizer.param_groups[0]['lr']}\nMetrics:\nMSE: {epoch_mse}, Val MSE: {val_mse}\nRMSE: {epoch_rmse}, Val RMSE: {val_rmse}")
             
         
         
@@ -289,16 +292,18 @@ class Trainer:
         self.model.eval()
         running_loss = 0.0
         running_mse = 0.0
+        running_rmse = 0.0
         with th.no_grad():
             for i, data in enumerate(self.val_loader):
                 x, edge_index, edge_attr, y = data.x.to(self.device), data.edge_index.to(self.device), data.edge_attr.to(self.device), data.y.to(self.device)
                 out = self.model(x, edge_index, edge_attr)
-                y = y.view(-1, self.nb_nodes*3)
                 loss = self.criterion(out, y)
                 mse = F.mse_loss(out, y)
+                rmse = th.sqrt(mse)
                 running_loss += loss.item()
                 running_mse += mse.item()
-        return running_loss/len(self.val_loader), running_mse/len(self.val_loader)
+                running_rmse += rmse.item()
+        return running_loss/len(self.val_loader), running_mse/len(self.val_loader), running_rmse/len(self.val_loader)
     
     def save_plots(self, model_dir):
         import matplotlib.pyplot as plt
@@ -344,11 +349,11 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/2025-02-06_12:03:20_training'
-    message_passing = 2
+    data_dir = 'npy_GNN_lego/2025-02-06_23:44:34_training'
+    message_passing = 5
     trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
-    model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GraphUNet"
+    model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GNN_passing_{message_passing}"
     if 'beam' in data_dir:
         model_name += '_beam'
     elif '250_nodes' in data_dir:

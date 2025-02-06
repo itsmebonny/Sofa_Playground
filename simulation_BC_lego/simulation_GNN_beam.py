@@ -314,6 +314,7 @@ class AnimationStepController(Sofa.Core.Controller):
         U_low = self.compute_displacement(self.MO_MapLR)
         U = self.compute_displacement(self.MO1)
         edges_low = self.compute_edges(self.surface_topo_LR)
+        pos_low = self.compute_position(self.MO_MapLR)
        
         if self.save and self.bad_sample == False:
             self.tmp_dir = f'npy_GNN_lego/{self.directory}/sample_{self.iteration}'
@@ -326,6 +327,7 @@ class AnimationStepController(Sofa.Core.Controller):
             np.save(f'{self.tmp_dir}/low_res_displacement.npy', U_low)
             np.save(f'{self.tmp_dir}/edges_low.npy', edges_low)
             np.save(f'{self.tmp_dir}/exact_displacement.npy', U)
+            np.save(f'{self.tmp_dir}/low_res_position.npy', pos_low)
             #save in a JSON file the bounding box and the force info with the structure Iteration -> Bounding box -> Force info and close the file
             with open(f'{self.tmp_dir}/info.json', 'w') as f:
                 json.dump({'iteration': self.iteration, 'bounding_box': self.bounding_box, 'force_info': self.force_info, 'indices_BC': self.indices_BC, 'key': self.key, 'indices_circle': self.indices_hole}, f)
@@ -348,6 +350,10 @@ class AnimationStepController(Sofa.Core.Controller):
     def compute_rest_position(self, mechanical_object):
         # Compute the position of the high resolution solution
         return mechanical_object.rest_position.value.copy()
+    
+    def compute_position(self, mechanical_object):
+        # Compute the position of the high resolution solution
+        return mechanical_object.position.value.copy()
     
     def compute_edges(self, grid):
         # create a matrix with the edges of the grid and their length
@@ -438,15 +444,11 @@ def main():
     USE_GUI = False
     # Update main code
     files = process_mesh_files('mesh')
-    roots_train = []
-    roots_val = []
-    ascs_train = []
-    ascs_val = []
-    mode = "train"
+
     directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     training_dir = directory + "_training"
     validation_dir = directory + "_validation"
-    mesh_training = int(0.8 * len(files))
+    mesh_training = int(0.7 * len(files))
     training_samples = 100
     validation_samples = 20
     train_samples = 0
@@ -489,31 +491,7 @@ def main():
 
 
     
-    # if mode == "train":
-    #     directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    #     directory = directory + "_training"
-        
-    #     for root, asc in zip(roots_train, ascs_train):
-    #         Sofa.Simulation.init(root)
-            
-
-           
-    # else:
-        
-    #     for root, asc in zip(roots_val, ascs_val):
-    #         Sofa.Simulation.init(root)
-    #         if not USE_GUI:
-    #             for i in tqdm(range(validation_samples)):
-    #                 Sofa.Simulation.animate(root, root.dt.value)
-    #                 Sofa.Simulation.reset(root)
-    #         else:
-    #             Sofa.Simulation.init(root)
-    #             Sofa.Gui.GUIManager.Init("myscene", "qglviewer")
-    #             Sofa.Gui.GUIManager.createGUI(root, __file__)
-    #             Sofa.Gui.GUIManager.SetDimension(800, 600)
-    #             Sofa.Gui.GUIManager.MainLoop(root)
-    #             Sofa.Gui.GUIManager.closeGUI()
-    #             Sofa.Simulation.reset(root)
+   
 
 
 if __name__ == '__main__':

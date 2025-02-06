@@ -118,8 +118,8 @@ class DataGraph(Dataset):
         tmp_dir = self.samples[idx]
         
         # Load arrays with memory mapping
-        high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy", mmap_mode='r')
-        low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy", mmap_mode='r')
+        high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy", mmap_mode='r').copy()
+        low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy", mmap_mode='r').copy()
         edges = np.load(f"{tmp_dir}/edges_low.npy", mmap_mode='r')
         
         edge_index = edges[:, :2].T.copy()
@@ -131,15 +131,15 @@ class DataGraph(Dataset):
             force_info = info['force_info']
             indices_BC = info['indices_BC']
             #check if indices_hole exists
-            if 'indices_hole' in info:
-                indices_hole = info['indices_hole']
+            if 'indices_circle' in info:
+                indices_hole = info['indices_circle']
         
         # Create boundary conditions
         boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
         if indices_BC:
             boundary_conditions[indices_BC, :3] = force_info['versor']
             boundary_conditions[indices_BC, 3] = force_info['magnitude']
-        if 'indices_hole' in info:
+        if 'indices_circle' in info:
             low_res_displacement[indices_hole] = 0
 
 

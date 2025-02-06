@@ -51,6 +51,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.l2_error_FC, self.MSE_error_FC = [], []
         self.l2_deformation_FC, self.MSE_deformation_FC = [], []
         self.RMSE_error_FC, self.RMSE_deformation_FC = [], []
+        self.relative_error, self.relative_deformation = [], []
+        self.relative_error_FC, self.relative_deformation_FC = [], []
+
+        self.model_diffs = []
 
         ## CHECK IF YOU WANT TO SAVE THE DATA
         self.save_for_images = False
@@ -196,6 +200,20 @@ class AnimationStepController(Sofa.Core.Controller):
         self.LowResSolution_FC.visual.addObject('BarycentricMapping', input='@../DOFs', output='@./')
 
 
+        self.LowResSolution_UM = rootNode.addChild('LowResSolution2D_unmapped', activated=True)
+        self.LowResSolution_UM.addObject('MeshGmshLoader', name='gridLow', filename=filename_low)
+        self.LowResSolution_UM.addObject('TetrahedronSetTopologyContainer', name='quadTopo', src='@gridLow')
+        self.MO2_UM = self.LowResSolution_UM.addObject('MechanicalObject', name='DOFs', template='Vec3d', src='@gridLow')
+        # self.LowResSolution_FC.addObject('MeshMatrixMass', totalMass=10, name="SparseMass", topology="@quadTopo")
+        self.LowResSolution_UM.addObject('StaticSolver', name='ODE', newton_iterations="30", printLog=False)
+        self.LowResSolution_UM.addObject('ParallelCGLinearSolver', template="ParallelCompressedRowSparseMatrixMat3x3d", iterations=1000, tolerance=1e-08, threshold=1e-08, warmStart=True) 
+        self.LowResSolution_UM.addObject('ParallelTetrahedronFEMForceField', name="FEM", youngModulus=young_modulus, poissonRatio=poisson_ratio, method="large", updateStiffnessMatrix="false")
+
+        self.LowResSolution_UM.addChild("visual_unmapped")
+        self.LowResSolution_UM.visual_unmapped.addObject('OglModel', src='@../DOFs', color='1 1 1 1')
+        self.LowResSolution_UM.visual_unmapped.addObject('BarycentricMapping', input='@../DOFs', output='@./')
+
+
 
 
         self.nb_nodes = len(self.MO1.position.value)
@@ -246,6 +264,7 @@ class AnimationStepController(Sofa.Core.Controller):
         self.MO1.position.value = self.MO1.rest_position.value
         self.MO2.position.value = self.MO2.rest_position.value
         self.MO2_FC.position.value = self.MO2_FC.rest_position.value
+        self.MO2_UM.position.value = self.MO2_UM.rest_position.value
 
 
         
@@ -394,6 +413,11 @@ class AnimationStepController(Sofa.Core.Controller):
         edges_low = self.compute_edges(self.surface_topo_LR)
         # print("U_low_FC: ", U_low_FC.shape)
         self.mesh_position = U_low
+
+        #rmse of the difference between the two models
+
+        diff_two_models = np.sqrt(np.mean((U_low - U_low_FC)**2))
+        self.model_diffs.append(diff_two_models)
 
 
         boundary_nodes = np.zeros((U_low.shape[0], 4))
@@ -582,7 +606,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         pred = self.MO_MapLR.position.value - self.MO_MapLR.rest_position.value
         gt = self.MO_MapHR.position.value - self.MO_MapHR.rest_position.value
-        maximum_disploacement = np.max(np.linalg.norm(gt, axis=1))
+        maximum_displacement = np.max(np.linalg.norm(gt, axis=1))
         
 
         # Compute metrics only for non-zero displacements
@@ -595,6 +619,10 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_error.append(np.sqrt((error.T @ error) / error.shape[0]))
         self.RMSE_deformation.append(np.sqrt((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0] ))
 
+        #add RMSE divided by the maximum displacement
+        self.relative_error.append(np.sqrt((error.T @ error) / error.shape[0]) / maximum_displacement)
+        self.relative_deformation.append(np.sqrt((gt.reshape(-1).T @ gt.reshape(-1)) / gt.shape[0]) / maximum_displacement)
+
 
     def compute_metrics_FC(self):
         """
@@ -603,6 +631,7 @@ class AnimationStepController(Sofa.Core.Controller):
 
         pred_FC = self.MO_MapLR_FC.position.value - self.MO_MapLR_FC.rest_position.value
         gt_FC = self.MO_MapHR.position.value - self.MO_MapHR.rest_position.value
+        maximum_displacement_FC = np.max(np.linalg.norm(gt_FC, axis=1))
 
         # Compute metrics only for non-zero displacements
         error_FC = (gt_FC - pred_FC).reshape(-1)
@@ -615,7 +644,8 @@ class AnimationStepController(Sofa.Core.Controller):
         self.RMSE_deformation_FC.append(np.sqrt((gt_FC.reshape(-1).T @ gt_FC.reshape(-1)) / gt_FC.shape[0]))
 
         # #ADD Relative RMSE
-        # self.RRMSE_error.append(np.sqrt(((error.T @ error) / error.shape[0]) / ((gt.reshape(-1).T @ gt.reshape(-1)))))
+        self.relative_error_FC.append(np.sqrt((error_FC.T @ error_FC) / error_FC.shape[0]) / maximum_displacement_FC)
+        self.relative_deformation_FC.append(np.sqrt((gt_FC.reshape(-1).T @ gt_FC.reshape(-1)) / gt_FC.shape[0]) / maximum_displacement_FC)
 
     def compute_displacement(self, mechanical_object):
         # Compute the displacement between the high and low resolution solutions
@@ -661,6 +691,8 @@ class AnimationStepController(Sofa.Core.Controller):
                     phi = 2*np.pi*n/M_phi
                     versors.append([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), np.cos(theta)])
             return np.array(versors)
+    
+  
 
 
     def close(self):
@@ -688,8 +720,8 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error.min(), 6)} -> {np.round(1e2 * relative_error.max(), 6)} %")
 
             print("\nGNN Relative RMSE Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)/14} ± {np.round(np.std(self.RMSE_error), 6)/14}")
-            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)/14} -> {np.round(np.max(self.RMSE_error), 6)/14}")
+            print(f"\t- Distribution : {np.round(np.mean(self.relative_error), 6)} ± {np.round(np.std(self.relative_error), 6)}")
+            print(f"\t- Extrema : {np.round(np.min(self.relative_error), 6)} -> {np.round(np.max(self.relative_error), 6)}")
             
 
             print("\nFC L2 ERROR Statistics :")
@@ -714,17 +746,18 @@ class AnimationStepController(Sofa.Core.Controller):
             print(f"\t- Relative Extrema : {np.round(1e2 * relative_error_FC.min(), 6)} -> {np.round(np.max(relative_error_FC), 6)} %")
 
             print("\nFC Relative RMSE Statistics :")
-            print(f"\t- Distribution : {np.round(np.mean(self.RMSE_error), 6)/14} ± {np.round(np.std(self.RMSE_error), 6)/14}")
-            print(f"\t- Extrema : {np.round(np.min(self.RMSE_error), 6)/14} -> {np.round(np.max(self.RMSE_error), 6)/14}")
+            print(f"\t- Distribution : {np.round(np.mean(self.relative_error_FC), 6)} ± {np.round(np.std(self.relative_error_FC), 6)}")
+            print(f"\t- Extrema : {np.round(np.min(self.relative_error_FC), 6)} -> {np.round(np.max(self.relative_error_FC), 6)}")
 
             #add a table comparing rmse of the two models
             print("\nComparison of the RMSE between the GNN and the FC model:")
             print(f"\t- GNN RMSE : {np.round(np.mean(self.RMSE_error), 6)} ± {np.round(np.std(self.RMSE_error), 6)} m")
             print(f"\t- FC RMSE : {np.round(np.mean(self.RMSE_error_FC), 6)} ± {np.round(np.std(self.RMSE_error_FC), 6)} m")
-            print(f"\t- Relative RMSE GNN : {np.round(np.mean(self.RMSE_error)/14, 6)} ± {np.round(np.std(self.RMSE_error)/14, 6)}")
-            print(f"\t- Relative RMSE FC : {np.round(np.mean(self.RMSE_error_FC)/14, 6)} ± {np.round(np.std(self.RMSE_error_FC)/14, 6)}")
             print(f"\t- MSE GNN : {np.round(np.mean(self.MSE_error), 6)} ± {np.round(np.std(self.MSE_error), 6)} m²")
             print(f"\t- MSE FC : {np.round(np.mean(self.MSE_error_FC), 6)} ± {np.round(np.std(self.MSE_error_FC), 6)} m²")
+            print(f"\t- Relative RMSE GNN : {np.round(np.mean(self.relative_error), 6)} ± {np.round(np.std(self.relative_error), 6)}")
+            print(f"\t- Relative RMSE FC : {np.round(np.mean(self.relative_error_FC), 6)} ± {np.round(np.std(self.relative_error_FC), 6)}")
+            print(f"\t- Diff between the two models : {np.round(np.mean(self.model_diffs), 6)}")
 
             if not self.save_for_images:
                 #put all this in a json file
@@ -749,9 +782,9 @@ class AnimationStepController(Sofa.Core.Controller):
                             "max": np.round(np.max(self.RMSE_error), 6)
                         },
                         "Relative_RMSE": {
-                            "mean": np.round(np.mean(self.RMSE_error)/14, 6),
-                            "std": np.round(np.std(self.RMSE_error)/14, 6)
-                        }
+                            "mean": np.round(np.mean(self.relative_error), 6),
+                            "std": np.round(np.std(self.relative_error), 6)
+                        },
                     },
                     "FC": {
                         "L2_error": {
@@ -773,8 +806,8 @@ class AnimationStepController(Sofa.Core.Controller):
                             "max": np.round(np.max(self.RMSE_error_FC), 6)
                         },
                         "Relative_RMSE": {
-                            "mean": np.round(np.mean(self.RMSE_error_FC)/14, 6),
-                            "std": np.round(np.std(self.RMSE_error_FC)/14, 6)
+                            "mean": np.round(np.mean(self.relative_error_FC), 6),
+                            "std": np.round(np.std(self.relative_error_FC), 6)
                         }
                     },
                     "Recap": {
@@ -788,8 +821,14 @@ class AnimationStepController(Sofa.Core.Controller):
                                 "std": np.round(np.std(self.RMSE_error_FC), 6)
                             },
                             "Relative_RMSE": {
-                                "GNN": np.round(np.mean(self.RMSE_error)/14, 6),
-                                "FC": np.round(np.mean(self.RMSE_error_FC)/14, 6)
+                                "GNN": {
+                                    "mean": np.round(np.mean(self.relative_error), 6),
+                                    "std": np.round(np.std(self.relative_error), 6)
+                                },
+                                "FC": {
+                                    "mean": np.round(np.mean(self.relative_error_FC), 6),
+                                    "std": np.round(np.std(self.relative_error_FC), 6)
+                                }
                             }
                         },
                         "Comparison_MSE": {
@@ -802,15 +841,20 @@ class AnimationStepController(Sofa.Core.Controller):
                                 "std": np.round(np.std(self.MSE_error_FC), 6)
                             }
                         }
-                    }
+                    },
+                    "Diff_two_models": {
+                        np.round(np.mean(self.model_diffs), 6)
+                        },
+
                 }
                 if not os.path.exists('metrics_data'):
                     os.mkdir('metrics_data')
                 self.model_name = self.model_GNN.split('/')[-1]
                 if not os.path.exists(f'metrics_data/{self.model_name}'):
                     os.mkdir(f'metrics_data/{self.model_name}')
-                with open(f'metrics_data/{self.model_name}/{self.filename_low}metrics.json', 'w') as f:
-                    json.dump(data, f, indent=4)
+                filename = self.filename_high.split('/')[-1]
+                with open(f'metrics_data/{self.model_name}/{filename}_metrics.json', 'w') as f:
+                    json.dump(convert_for_json(data), f, indent=4)
 
 
 
@@ -827,7 +871,21 @@ class AnimationStepController(Sofa.Core.Controller):
 
     
         
-
+def convert_for_json(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, set):
+        return list(obj)
+    elif isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, 
+                        np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64)):
+        return int(obj)
+    elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_for_json(item) for item in obj]
+    return obj
         
 
 def createScene(rootNode, filename_high, filename_low, directory, sample, key, *args, **kwargs):
@@ -881,12 +939,12 @@ def main():
                 sorted_dict[key] = [f[1] for f in sorted_files]
         
         return sorted_dict
-    USE_GUI = False
+    USE_GUI = True
     # Update main code
     files = process_mesh_files('mesh')
 
     directory = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    tests_per_sample = 3
+    tests_per_sample = 5
     train_samples = 0
     # #shuffle keys
     # shuffled_keys = list(files.keys())
