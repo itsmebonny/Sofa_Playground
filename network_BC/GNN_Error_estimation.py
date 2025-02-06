@@ -64,13 +64,13 @@ class Net(th.nn.Module):
     
 
 class RMSELoss(nn.Module):
-    # Custom loss function that computes the mean squared error between the predicted and true values and normalizes it by the true value
+    # Custom loss function that computes the mean squared error between the predicted and true values and normalizes it by the true value and normalizes it by dividing for the maximum value of the true value
     def __init__(self):
         super(RMSELoss, self).__init__()
 
     def forward(self, pred, true):
-        loss = th.mean(th.square(pred - true)) 
-        return th.sqrt(loss)
+        max_error = th.max(th.abs(true))
+        return th.sqrt(th.mean(th.square(pred - true)))/max_error
     
 class MixedLoss(nn.Module):
     # Custom loss function that computes the weighted sum between the root mean squared error and the maximum absolute error
@@ -90,58 +90,6 @@ class MixedLoss(nn.Module):
             return 0.7*loss1 + 0.3*loss2
     
     
-# create class that loads the data from the npy files and manipulates them to prepare them for training for pytorch geometric
-
-# class DataGraph(Dataset):
-#     def __init__(self, data_dir):
-#         self.data_dir = data_dir
-#         self.data_list = DataGraph.create_data_list(data_dir)
-
-        
-#     def __cat_dim__(self, key, value, *args, **kwargs):
-#         return None 
-    
-#         # load the data
-#     def get_subdirectories(directory):
-#         return [f.path for f in os.scandir(directory) if f.is_dir()]
-    
-#     def create_data_list(directory):
-#         samples = DataGraph.get_subdirectories(directory)
-#         n_samples = len(samples)
-#         data_list = []
-#         count = 0
-#         for i in tqdm(range(n_samples)):
-#             skip = False
-#             tmp_dir = samples[i]
-#             iteration_number = tmp_dir.split('/')[-1].split('_')[-1]
-#             high_res_displacement = np.load(f"{tmp_dir}/high_res_displacement.npy")
-#             low_res_displacement = np.load(f"{tmp_dir}/low_res_displacement.npy")
-#             edge_index = np.load(f"{tmp_dir}/edges_low.npy")[:, :2].T
-#             edge_attr = np.load(f"{tmp_dir}/edges_low.npy")[:, 2]
-
-#             #load info.json 
-#             with open(f"{tmp_dir}/info.json") as f:
-#                 info = json.load(f)
-#                 bounding_box = info['bounding_box']
-#                 force_info = info['force_info']
-#                 indices_BC = info['indices_BC']
-#                 if indices_BC == []:
-#                     skip = True
-#                     count += 1
-#             if not skip:
-#                 boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
-#                 boundary_conditions[indices_BC, :3] = force_info['versor']
-#                 boundary_conditions[indices_BC, 3] = force_info['magnitude']
-
-
-#                 node_features = np.hstack((low_res_displacement, boundary_conditions))
-#                 y = high_res_displacement - low_res_displacement
-#                 y = y.flatten()
-#                 data = Data(x=th.tensor(node_features, dtype=th.float32), edge_index=th.tensor(edge_index, dtype=th.long), edge_attr=th.tensor(edge_attr, dtype=th.float32), y=th.tensor(y, dtype=th.float32))
-#                 data_list.append(data)
-#         print(f"Skipped {count} samples, this dataset has a percentage of {count/n_samples*100}% of skipped samples")
-#         return data_list
-
 
 class DataGraph(Dataset):
     def __init__(self, data_dir):
@@ -182,12 +130,18 @@ class DataGraph(Dataset):
             info = json.load(f)
             force_info = info['force_info']
             indices_BC = info['indices_BC']
+            #check if indices_hole exists
+            if 'indices_hole' in info:
+                indices_hole = info['indices_hole']
         
         # Create boundary conditions
         boundary_conditions = np.zeros((low_res_displacement.shape[0], 4))
         if indices_BC:
             boundary_conditions[indices_BC, :3] = force_info['versor']
             boundary_conditions[indices_BC, 3] = force_info['magnitude']
+        if 'indices_hole' in info:
+            low_res_displacement[indices_hole] = 0
+
 
         # Prepare features and target
         node_features = np.hstack((low_res_displacement.copy(), boundary_conditions))
@@ -257,7 +211,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/inverted_validation_2k'
+            self.validation_dir = 'npy_GNN_lego/2025-02-06_12:03:20_validation'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         self.val_loader = DataLoader(
@@ -270,7 +224,8 @@ class Trainer:
         )
         self.model = Net(self.nb_nodes, self.nb_features, self.message_passing).to(self.device)
         self.criterion = RMSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        #ADAM optimizer with tichonov regularization
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-5)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=30, min_lr=1e-5)
         self.train_losses = []
         self.val_losses = []
@@ -374,8 +329,8 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/inverted_training_2k'
-    message_passing = 9
+    data_dir = 'npy_GNN_lego/2025-02-06_12:03:20_training'
+    message_passing = 2
     trainer = Trainer(data_dir, 32, 0.001, 500, message_passing)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_GNN_passing_{message_passing}"

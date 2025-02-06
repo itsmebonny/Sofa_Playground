@@ -70,8 +70,9 @@ class RMSELoss(nn.Module):
         # Reshape tensors to match dimensions
         pred = pred.view(pred.shape[0], -1)  # (batch_size, nb_nodes * 3)
         true = true.view(true.shape[0], -1)  # (batch_size, nb_nodes * 3)
+        max_error = th.max(th.abs(pred - true))
         loss = th.mean(th.square(pred - true)) 
-        return th.sqrt(loss)
+        return th.sqrt(loss)/max_error
     
 class MixedLoss(nn.Module):
     # Custom loss function that computes the weighted sum between the root mean squared error and the maximum absolute error
@@ -126,10 +127,18 @@ class DataGraph(Dataset):
             info = json.load(f)
             force_info = info['force_info']
             bounding_box = info['bounding_box']
+            if 'key' in info:
+                key = info['key']
         
             # Create boundary conditions with 10 columns: 
             # [force_versor_x,y,z, force_magnitude, bbox_min_x,y,z, bbox_max_x,y,z]
-            boundary_conditions = np.zeros((1, 10))
+            if not 'key' in info:
+                boundary_conditions = np.zeros((1, 10))
+            else:
+                boundary_conditions = np.zeros((1, 13))
+                boundary_conditions[0, 10] = key[0]
+                boundary_conditions[0, 11] = key[1]
+                boundary_conditions[0, 12] = key[2]    
             boundary_conditions[0, :3] = force_info['versor']
             boundary_conditions[0, 3] = force_info['magnitude']
             boundary_conditions[0, 4] = bounding_box['x_min']
@@ -162,7 +171,7 @@ class EarlyStopper:
         self.lr = lr
 
     def early_stop(self, validation_loss, learning_rate):
-        if validation_loss < self.min_validation_loss:
+        if validation_loss < (self.min_validation_loss + self.min_delta):
             self.min_validation_loss = validation_loss
             self.counter = 0
         elif learning_rate != self.lr:
@@ -212,7 +221,7 @@ class Trainer:
         if 'fast_loading' in data_dir:
             self.validation_dir = data_dir
         else:
-            self.validation_dir = 'npy_GNN_lego/validation_5k'
+            self.validation_dir = 'npy_GNN_lego/2025-02-06_12:03:20_validation'
             
         self.val_data_graph = DataGraph(self.validation_dir)
         
@@ -238,7 +247,7 @@ class Trainer:
         # Setup model and training components
         self.model = Net(self.input_size, self.output_size).to(self.device)
         self.criterion = RMSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-5)
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, mode='min', factor=0.1, patience=40, min_lr=1e-5
         )
@@ -364,7 +373,7 @@ class Trainer:
     
 
 if __name__ == '__main__':
-    data_dir = 'npy_GNN_lego/training_5k'
+    data_dir = 'npy_GNN_lego/2025-02-06_12:03:20_training'
     trainer = Trainer(data_dir, 32, 0.001, 500)
     trainer.train()
     model_name = f"model_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}_FC"
